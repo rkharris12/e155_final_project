@@ -1,3 +1,7 @@
+# ----------------
+# Binary Math
+# ----------------
+
 import math
 
 def num2bin(num, str):
@@ -119,9 +123,9 @@ def frac2bin(num):
     #print(str)
     return str
     
-# #######
-# #######
-# #######
+# ----------------
+# Load in CSVs
+# ----------------
 
 import csv
 
@@ -129,6 +133,68 @@ inputLayer = []
 hiddenWeights = []
 outputWeights = []
 newrow = []
+
+with open('xtrain_q15.csv', newline='') as inputLayerFile:
+    inputLayerRead = csv.reader(inputLayerFile, delimiter=' ', quotechar='|')
+    for row in inputLayerRead:
+        row = row[0].split(',')
+        for e in row:
+            newrow += [e]
+        inputLayer += [newrow]
+        newrow = []
+
+with open('hiddenweights.csv', newline='') as hiddenWeightsFile:
+    hiddenWeightsRead = csv.reader(hiddenWeightsFile, delimiter=' ', quotechar='|')
+    for row in hiddenWeightsRead:
+        row = row[0].split(',')
+        for e in row:
+            newrow += [e]
+        hiddenWeights += [newrow]
+        newrow = []
+
+with open('outputweights.csv', newline='') as outputWeightsFile:
+    outputWeightsRead = csv.reader(outputWeightsFile, delimiter=' ', quotechar='|')
+    for row in outputWeightsRead:
+        row = row[0].split(',')
+        for e in row:
+            newrow += [e]
+        outputWeights += [newrow]
+        newrow = []        
+        
+# ----------------
+# Write DATs
+# ----------------
+        
+f = open("inputlayer.dat","w+")
+
+out = ''
+for r in range(0, len(inputLayer)):
+    f.write(out.join(inputLayer[r]) + "\r\n");
+    out = ''
+    
+f.close()        
+        
+f = open("hiddenweights.dat","w+")
+
+out = ''
+for r in range(0, len(hiddenWeights)):
+    f.write(out.join(hiddenWeights[r]) + "\r\n");
+    out = ''
+    
+f.close()
+
+f = open("outputweights.dat","w+")
+
+out = ''
+for r in range(0, len(outputWeights)):
+    f.write(out.join(outputWeights[r]) + "\r\n");
+    out = ''
+    
+f.close()
+
+# ----------------
+# Old read CSVs reference
+# ----------------
 
 #with open('inputlayer.csv', newline='') as inputLayerFile:
 #    inputLayerRead = csv.reader(inputLayerFile, delimiter=' ', quotechar='|')
@@ -141,15 +207,6 @@ newrow = []
 #            newrow += [hex(int(e))[2::]]
 #        inputLayer += [newrow]
 #        newrow = []
-
-with open('xtrain.csv', newline='') as inputLayerFile:
-    inputLayerRead = csv.reader(inputLayerFile, delimiter=' ', quotechar='|')
-    for row in inputLayerRead:
-        row = row[0].split(',')
-        for e in row:
-            newrow += [e[2::]]
-        inputLayer += newrow
-        newrow = []
 
 #with open('xtrain.csv', newline='') as inputLayerFile:
 #    inputLayerRead = csv.reader(inputLayerFile, delimiter=' ', quotechar='|')
@@ -181,33 +238,3 @@ with open('xtrain.csv', newline='') as inputLayerFile:
 #f = open("inputlayer.dat","w+")
 #f.write('0x' + out.join(inputLayer) + "\r\n");  
 #f.close()
-        
-f = open("inputlayer.dat","w+")
-
-out = ''
-for r in range(0, len(inputLayer)):
-    f.write(out.join(inputLayer[r]) + "\r\n");
-    out = ''
-    
-f.close()        
-        
-f = open("hiddenweights.dat","w+")
-
-out = ''
-for r in range(0, len(hiddenWeights)):
-    f.write(out.join(hiddenWeights[r]) + "\r\n");
-    out = ''
-    
-f.close()
-
-f = open("outputweights.dat","w+")
-
-out = ''
-for r in range(0, len(outputWeights)):
-    f.write(out.join(outputWeights[r]) + "\r\n");
-    out = ''
-    
-f.close()
-
- 
-        

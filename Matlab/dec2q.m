@@ -81,4 +81,4 @@ for i = 1:length(x),
 	y(i,:) = d;
 end
 
-y = strcat("0x",string(char(y)));
+y = strcat(string(char(y)));
