@@ -1,141 +1,193 @@
-`define INPUT_LAYER_DIM  257
-`define HIDDEN_LAYER_DIM 30*8 // 30 x 8b numbers
-`define OUTPUT_LAYER_DIM 10
+`include "nn_defines.svh"
 
 module top(input  logic clk, reset,
-           output logic [7:0] classification[9:0]
-
-);
-    logic [7:0] dummy, img_byte;
-    logic [10:0] cycle;
+           // TODO: add input for image from decimators
+           output logic [`INT_16-1:0] classification[9:0]);
+    logic [`UINT_8-1:0] img_byte;
+    logic [`ADR_LEN-1:0] cycle;
+    
     // adhoc input layer RAM
-    //mem #(8, 257) input_layer(clk, 0, cycle, dummy, img_byte);
+    // TODO: add input for image from decimators
     inputmem irom(clk, cycle, img_byte);
 
-    // TODO: remove we, wd
-    nn ffnn(clk, reset, img_byte, cycle, classification);
+    nn feedforward(clk, reset, img_byte, cycle, classification);
 
 endmodule
 
-module nn(input  logic        clk, reset,
-          input  logic [7:0]  img_byte,
-          output logic [10:0] cycle,
-          output logic [7:0]  classification[9:0]
-);
+module nn(input  logic                clk, reset,
+          input  logic [`UINT_8-1:0]  img_byte,
+          output logic [`ADR_LEN-1:0] cycle,
+          output logic [`INT_16-1:0]  classification[9:0]);
 
     // wires
-    logic we, rd_src, acc_clr;
-    logic [10:0] a;
-    logic [30*8-1:0] rd1, dummy, temp_out, wd;
-    logic [10*8-1:0] rd2;
+    logic                         we, clear; // controls for RAM
+    logic                         rd_src1;
+    logic [1:0]                   rd_src2;
+    logic [`HIDDEN_LAYER_WID-1:0] rd1, rd2, rd3; // rd from weights ROMs
+    logic [`RESULT_WD_WID-1:0]    result;
+    logic [`RESULT_RD_WID-1:0]    prev_out;
     
     // weight memories
-    // 257 rows of 30, 8b numbers
-    //mem #(30*8, 257) input_weights(clk, 0, cycle, dummy, rd1); // TODO: implement write to mem
-    w1mem input_weights(clk, cycle, rd1);
-    
-    // 10 rows of 30, 8b numbers
-    //mem #(30*8, 10) output_weights(clk, 0, cycle, dummy, rd2);
-    w2mem output_weights(clk, cycle, rd2);
+    // 257 rows of 15 int16s
+    w1rom h1_weights(clk, cycle, rd1);
+    // 16 rows of 15 int16s
+    w2rom h2_weights(clk, cycle, rd2);
+    w3rom h3_weights(clk, cycle, rd3);
     
     // output layer mem
-    mem #(30*8, 10) result_ram(clk, 1'b0, cycle, dummy, temp_out);
+    oram result_ram(clk, we, cycle, result, prev_out);
     
     // controller
-    controller c(clk, reset, cycle, we, rd_src, acc_clr, a);
+    controller c(clk, reset, we, cycle, rd_src1, rd_src2, clear);
     
     // datapath
-    datapath d(clk, rd_src, acc_clr, img_byte, rd1, rd2, wd, classification);
+    datapath d(clk, rd_src1, rd_src2, clear, img_byte, rd1, rd2, rd3, prev_out, result, classification);
     
     
 endmodule
 
-module datapath(input  logic            clk,
-                input  logic            rd_src, acc_clr,
-                input  logic [7:0]      img_byte,
-                input  logic [30*8-1:0] rd1, 
-                input  logic [10*8-1:0] rd2,
-                output logic [30*8-1:0] wd,
-                output logic [7:0]      classification[9:0]
-);
+module datapath(input  logic                         clk,
+                input  logic                         rd_src1,
+                input  logic [1:0]                   rd_src2,
+                input  logic                         clear,
+                input  logic [`UINT_8-1:0]           img_byte,
+                input  logic [`HIDDEN_LAYER_WID-1:0] rd1, rd2, rd3, prev_out,
+                output logic [`RESULT_WD_WID-1:0]    result,
+                output logic [`INT_16-1:0]           classification[9:0]);
     
-    logic [7:0] img_byte_div;
+    logic [`INT_16-1:0] img_int16, img_int16_div;
+    logic [`INT_16-1:0] src1;
+    logic [`HIDDEN_LAYER_WID-1:0] src2;
     
-    assign img_byte_div = img_byte >>> 2;
+    // extend incoming image to int16, convert to Q15
+    assign img_int16 = {'0, img_byte};
+    assign img_int16_div = img_int16_div >> 2; // TODO: change divisor
     
+    // select read sources
+    /*  src1 | src2
+     *  -----------
+     *  img  | rd1
+     *  out  | rd2
+     *  ...
+     *  out  | rdN
+     */ 
+     mux2 #(`INT_16) src1mux(img_int16_div, prev_out, rd_src1, src1);
+     mux3 #(`HIDDEN_LAYER_WID) src2mux(rd1, rd2, rd3, rd_src2, src2);
+    
+    // generate datapath wires
     genvar gi;
     generate 
-        for (gi=1; gi<31; gi++) begin : gw // generate wires
-            logic [7:0] rd1b, rd2b;
-            assign rd1b = rd1[(8*gi-1) -: 8];
-            assign rd2b = rd2[(8*gi-1) -: 8];
+        for (gi=1 ; gi<`NUM_MULTS+1; gi++) begin : gw // generate wires
+            logic [`INT_16-1:0] src2b;
+            assign src2b = src2[(`INT_16*gi-1) -: `INT_16];
+           // assign rd2b = rd2[(8*gi-1) -: 8];
         end
     endgenerate
     
     
     genvar gj;
     generate 
-        for (gj=0; gj<30; gj++) begin : dp // generate datapath
+        for (gj=0; gj<`NUM_MULTS; gj++) begin : dpsl // generate datapath slice
             // wires
-            logic [7:0] a_mul, b_mul;
-            logic [15:0] prod, sum, act_sum;
-            //logic [7:0] rd1b, rd2b;
-            //assign rd1b = rd1[(8*(gj+1)-1) -: 8];
-            //assign rd2b = rd2[(8*(gj+1)-1) -: 8];
+            logic [`INT_16-1:0] trunc_prod, sum, activ_sum; 
+            logic [`INT_32-1:0] prod;
+
             // mux for picking image or rd1, rd1 or rd2
-            mux2 #(8) mul_sel0(gw[gj+1].rd1b, img_byte, rd_src, a_mul);
-            mux2 #(8) mul_sel1(gw[gj+1].rd2b, gw[gj+1].rd1b, rd_src, b_mul);
+            //mux2 #(8) mul_sel0(gw[gj+1].rd1b, img_byte, rd_src, a_mul);
+            //mux2 #(8) mul_sel1(gw[gj+1].rd2b, gw[gj+1].rd1b, rd_src, b_mul);
+             
             // mul
-            //mul #(8) matmul(a_mul, b_mul, prod); // TODO: fix mult?
-            assign prod = a_mul * b_mul;
+            assign prod = src1 * gw[gj+1].src2b;
+            assign trunc_prod = prod[31:16];
+            
             // acc
-            acc #(16) lc(clk, acc_clr, prod, sum); // TODO: fix mult
+            acc #(`INT_16) lc(clk, clear, prod, sum);
+            
             // neg_comp
-            neg_comp #(16) relu(sum, act_sum);
+            neg_comp #(`INT_16) relu(sum, activ_sum);
         end
     endgenerate
     
-    //TODO: implement wd from act_sum
-    
-    assign classification = {dp[9].act_sum, dp[8].act_sum, dp[7].act_sum, dp[6].act_sum, dp[5].act_sum, dp[4].act_sum, dp[3].act_sum, dp[2].act_sum, dp[1].act_sum, dp[0].act_sum}; 
-    
-
+    assign result = {dpsl[15].activ_sum, 
+                     dpsl[14].activ_sum, 
+                     dpsl[13].activ_sum,
+                     dpsl[12].activ_sum, 
+                     dpsl[11].activ_sum, 
+                     dpsl[10].activ_sum,
+                     dpsl[9].activ_sum, 
+                     dpsl[8].activ_sum, 
+                     dpsl[7].activ_sum, 
+                     dpsl[6].activ_sum, 
+                     dpsl[5].activ_sum, 
+                     dpsl[4].activ_sum, 
+                     dpsl[3].activ_sum, 
+                     dpsl[2].activ_sum, 
+                     dpsl[1].activ_sum, 
+                     dpsl[0].activ_sum};
+                             
+    //assign classification = ...
+       
 endmodule
 
-module controller(input  logic                        clk, reset,
-                  output logic [10:0]                 cycle,
-                  output logic                        we, rd_src, acc_clr,
-                  output logic [10:0] a // TODO: remove cycle or a
-);
+module controller(input  logic                clk, reset,
+                  output logic                we,
+                  output logic [`ADR_LEN-1:0] cycle,
+                  output logic                rd_src1,
+                  output logic [1:0]          rd_src2, 
+                  output logic                clear);
 
-    logic input_layer_done, hidden_layer_done;  
+    //typedef enum {RESET, MULTIPLY, TRANSITION, DONE} statetype;
+    //statetype state, nextstate;
+    
+    // flags
+    logic input_layer_done, hidden_layer_done;
+    logic [1:0] layers_done_count;
       
     always_ff @(posedge clk, posedge reset)
         if (reset) begin
             cycle <= 0;
+            we <= 0;
+            clear <= 1;
             input_layer_done <= 0;
             hidden_layer_done <= 0;
+            layers_done_count <= 0;
+        end
+        else if (layers_done_count == `NUM_LAYERS) begin
+            cycle <= 0;
+            clear <= 1;
         end
         // reset when cycle == 256 for input layer
-        else if (cycle == 11'd257) begin 
+        else if (cycle == `MULT_INPUT_CYCLES) begin 
             cycle <= 0;
+            we <= 1;
             input_layer_done <= 1;
+            layers_done_count <= layers_done_count + 1;
         end
+        else if (input_layer_done) begin 
+            cycle <= 0; // delay to calculate final sum
+            we <= 0;
+            clear <= 1;
+        end        
         // reset when cycle == 9 for hidden layer
-        else if ((cycle == 11'd9) & input_layer_done) begin
+        else if ((cycle == `MULT_HIDDEN_CYCLES) & input_layer_done) begin
             cycle <= 0;
+            we <= 1;
             hidden_layer_done <= 1;
+            layers_done_count <= layers_done_count + 1;
         end
-        // TODO: state for done?
-        else       
+        else if (hidden_layer_done) begin 
+            cycle <= 0; // delay to calculate final sum
+            we <= 0;
+            clear <= 1;
+            hidden_layer_done <= 0;
+        end   
+        else begin       
             cycle <= cycle + 1;   
+            clear <= 0;
+        end
         
-    always_comb begin
-        we = cycle == 11'd257;
-        a = cycle; // TODO: pad with zeros to right length
-        rd_src = ~input_layer_done; //TODO: make better choice
-        acc_clr = ((cycle == 11'd257) | ((cycle == 11'd9) & input_layer_done)) | reset;
-    end
+    assign rd_src1 = input_layer_done; //TODO: make better choice
+    assign rd_src2 = layers_done_count;
     
 endmodule
 
@@ -146,58 +198,94 @@ endmodule
 // need to make the specific memories
 // initial   $readmemh("sbox.txt", sbox); // use each .dat from py script
 
-module inputmem(input  logic       clk, 
-                input  logic [10:0] a, // TODO: remove this hack
-                output logic [7:0] rd
-);
+module inputmem(input  logic                clk, 
+                input  logic [`ADR_LEN-1:0] a,
+                output logic [`INT_16-1:0]  rd);
 
-  logic [7:0] ROM[257-1:0];
+  logic [`INT_16-1:0] ROM[`INPUT_LAYER_LEN-1:0];
 
   initial
     $readmemh("inputlayer.dat", ROM);
   
-  assign rd = ROM[a[10:0]]; // changed the 2 to 0
+  assign rd = ROM[a[`ADR_LEN-1:0]]; // changed the 2 to 0
 endmodule
 
-module w1mem(input  logic            clk,
-             input  logic [10:0] a, // TODO: remove this hack
-             output logic [30*8-1:0] rd
-);
+module w1rom(input  logic                         clk,
+             input  logic [`ADR_LEN-1:0]          a,
+             output logic [`HIDDEN_LAYER_WID-1:0] rd);
 
-  logic [30*8-1:0] ROM[257-1:0];
+  logic [`HIDDEN_LAYER_WID-1:0] ROM[`INPUT_LAYER_LEN-1:0];
 
   initial
-    $readmemh("hiddenweights.dat", ROM);
+    $readmemh("hiddenweights1.dat", ROM);
   
-  assign rd = ROM[a[10:0]]; // changed the 2 to 0
+  assign rd = ROM[a[`ADR_LEN-1:0]]; // changed the 2 to 0
 endmodule
 
-module w2mem(input  logic            clk,
-             input  logic [10:0] a, // TODO: remove this hack
-             output logic [10*8-1:0] rd
-);
+module w2rom(input  logic                         clk,
+             input  logic [`ADR_LEN-1:0]          a,
+             output logic [`HIDDEN_LAYER_WID-1:0] rd);
 
-  logic [10*8-1:0] ROM[31-1:0];
-  
+  logic [`HIDDEN_LAYER_WID-1:0] ROM[`HIDDEN_LAYER_LEN-1:0];
+
   initial
-    $readmemh("outputweights.dat", ROM);
+    $readmemh("hiddenweights2.dat", ROM);
   
-  assign rd = ROM[a[10:0]]; //WATCH OUT FOR BIAS
+  assign rd = ROM[a[`ADR_LEN-1:0]]; // changed the 2 to 0
 endmodule
 
-module mem #(parameter WIDTH = 8, LENGTH = 8)
-            (input  logic             clk, we,
-             input  logic [10:0]      a,
-             input  logic [WIDTH-1:0] wd,
-             output logic [WIDTH-1:0] rd
-);
+module w3rom(input  logic                         clk,
+             input  logic [`ADR_LEN-1:0]          a, // TODO: remove this hack
+             output logic [`HIDDEN_LAYER_WID-1:0] rd);
 
-  logic [WIDTH-1:0] RAM[LENGTH-1:0];
+  logic [`HIDDEN_LAYER_WID-1:0] ROM[`HIDDEN_LAYER_LEN-1:0];
 
-  assign rd = RAM[a[WIDTH-1:0]]; // changed the 2 to 0
+  initial
+    $readmemh("hiddenweights3.dat", ROM);
+  
+  assign rd = ROM[a[`ADR_LEN-1:0]]; // changed the 2 to 0
+endmodule
 
+module w4rom(input  logic                         clk,
+             input  logic [`ADR_LEN-1:0]          a, // TODO: remove this hack
+             output logic [`HIDDEN_LAYER_WID-1:0] rd);
+
+  logic [`HIDDEN_LAYER_WID-1:0] ROM[`HIDDEN_LAYER_LEN-1:0];
+
+  initial
+    $readmemh("hiddenweights4.dat", ROM);
+  
+  assign rd = ROM[a[`ADR_LEN-1:0]]; // changed the 2 to 0
+endmodule
+
+module oram(input  logic                      clk, we,
+            input  logic [`ADR_LEN-1:0]       a,
+            input  logic [`RESULT_WD_WID-1:0] wd,
+            output logic [`RESULT_RD_WID-1:0] rd);
+
+  logic [`RESULT_RD_WID-1:0] RAM[`RESULT_LEN-1:0];
+
+  assign rd = RAM[a[`ADR_LEN-1:0]]; // changed the 2 to 0
+  
   always_ff @(posedge clk)
-    if (we) RAM[a[10:0]] <= wd;
+    if (we) begin
+        RAM[0]  <= 16'h0; 
+        RAM[1]  <= wd[`INT_16*15-1 -:`INT_16]; 
+        RAM[2]  <= wd[`INT_16*14-1 -:`INT_16]; 
+        RAM[3]  <= wd[`INT_16*13-1 -:`INT_16]; 
+        RAM[4]  <= wd[`INT_16*12-1 -:`INT_16]; 
+        RAM[5]  <= wd[`INT_16*11-1 -:`INT_16]; 
+        RAM[6]  <= wd[`INT_16*10-1 -:`INT_16]; 
+        RAM[7]  <= wd[`INT_16*9-1  -:`INT_16]; 
+        RAM[8]  <= wd[`INT_16*8-1  -:`INT_16]; 
+        RAM[9]  <= wd[`INT_16*7-1  -:`INT_16]; 
+        RAM[10] <= wd[`INT_16*6-1  -:`INT_16]; 
+        RAM[11] <= wd[`INT_16*5-1  -:`INT_16]; 
+        RAM[12] <= wd[`INT_16*4-1  -:`INT_16]; 
+        RAM[13] <= wd[`INT_16*3-1  -:`INT_16]; 
+        RAM[14] <= wd[`INT_16*2-1  -:`INT_16];
+        RAM[15] <= wd[`INT_16*1-1  -:`INT_16];
+    end
 endmodule
 
 //
@@ -206,8 +294,7 @@ endmodule
 
 module mul #(parameter WIDTH = 8)
             (input  logic [WIDTH-1:0] a, b,
-             output logic [2*WIDTH-1:0] y
-);
+             output logic [2*WIDTH-1:0] y);
 
   assign y = a * b;
 endmodule
