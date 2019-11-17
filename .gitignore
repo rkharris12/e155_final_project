@@ -1,0 +1,6 @@
+*.mpf
+*.cr.mti
+*.wlf
+**/work/
+*.dat
+*.csv
