@@ -44,13 +44,13 @@ end
 function Yp=BackpropagationNetwork(X,Y)
     [Nsamps D]=size(X); % Nsamps is number of samples (2240), D is dimension (256)
     N=D; M=10; % number of input layer nodes and output layer nodes, respectively
-    L1=29; % number of hidden layer 1 nodes
-    L2=29; % number of hidden layer 2 nodes
+    L1=14; % number of hidden layer 1 nodes
+    L2=14; % number of hidden layer 2 nodes
     % convert X to Q16.  Shift right by 16
     X = X/65536;
-    Wh1new=(2*rand(N+1,L1)-ones(N+1,L1))/4; % (257x29) randomly initialize N+1 dimensional (includes bias b) augmented hidden weight vectors Wh1=[wh1 wh2...whL].  Values between -0.125 and 0.125
-    Wh2new=(2*rand(L1+1,L2)-ones(L1+1,L2))/4; % (30x29) randomly initialize L1+1 dimensional (includes bias b) augmented hidden weight vectors Wh2=[wh1 wh2...whL].  Values between -0.125 and 0.125
-    Wonew=(2*rand(L2+1,M)-ones(L2+1,M))/4; % (30x10) randomly initialize L2+1 dimensional (includes bias b) augmented output weight vectors Wo=[wo1 wo2...woM].  Values between -0.125 and 0.125
+    Wh1new=(2*rand(N+1,L1)-ones(N+1,L1))/2; % (257xL1) randomly initialize N+1 dimensional (includes bias b) augmented hidden weight vectors Wh1=[wh1 wh2...whL].  Values between -0.25 and 0.25
+    Wh2new=(2*rand(L1+1,L2)-ones(L1+1,L2))/2; % (L1+1xL2) randomly initialize L1+1 dimensional (includes bias b) augmented hidden weight vectors Wh2=[wh1 wh2...whL].  Values between -0.25 and 0.25
+    Wonew=(2*rand(L2+1,M)-ones(L2+1,M))/2; % (L2+1x10) randomly initialize L2+1 dimensional (includes bias b) augmented output weight vectors Wo=[wo1 wo2...woM].  Values between -0.25 and 0.25
     eta=0.01; % learning rate
     tolerance=2*10^-2;
     error=inf;
