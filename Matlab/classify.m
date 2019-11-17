@@ -2,7 +2,8 @@ clear
 
 %load weights_1layer_30nodes.mat;
 %load weights_2layers_30nodes.mat;
-load weights_2layers_15nodes.mat;
+%load weights_2layers_15nodes.mat;
+load weights_no_overflow.mat;
 
 X=load("data1.txt");
 X = X/65536; % convert X to Q16.  Shift right by 16

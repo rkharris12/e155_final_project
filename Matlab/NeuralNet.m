@@ -47,10 +47,11 @@ function Yp=BackpropagationNetwork(X,Y)
     L1=14; % number of hidden layer 1 nodes
     L2=14; % number of hidden layer 2 nodes
     % convert X to Q16.  Shift right by 16
-    X = X/65536;
-    Wh1new=(2*rand(N+1,L1)-ones(N+1,L1))/2; % (257xL1) randomly initialize N+1 dimensional (includes bias b) augmented hidden weight vectors Wh1=[wh1 wh2...whL].  Values between -0.25 and 0.25
-    Wh2new=(2*rand(L1+1,L2)-ones(L1+1,L2))/2; % (L1+1xL2) randomly initialize L1+1 dimensional (includes bias b) augmented hidden weight vectors Wh2=[wh1 wh2...whL].  Values between -0.25 and 0.25
-    Wonew=(2*rand(L2+1,M)-ones(L2+1,M))/2; % (L2+1x10) randomly initialize L2+1 dimensional (includes bias b) augmented output weight vectors Wo=[wo1 wo2...woM].  Values between -0.25 and 0.25
+    %X = X/65536;
+    X = X/256;
+    Wh1new=(2*rand(N+1,L1)-ones(N+1,L1))/256; % (257xL1) randomly initialize N+1 dimensional (includes bias b) augmented hidden weight vectors Wh1=[wh1 wh2...whL].  Values between -0.25 and 0.25
+    Wh2new=(2*rand(L1+1,L2)-ones(L1+1,L2))/256; % (L1+1xL2) randomly initialize L1+1 dimensional (includes bias b) augmented hidden weight vectors Wh2=[wh1 wh2...whL].  Values between -0.25 and 0.25
+    Wonew=(2*rand(L2+1,M)-ones(L2+1,M))/256; % (L2+1x10) randomly initialize L2+1 dimensional (includes bias b) augmented output weight vectors Wo=[wo1 wo2...woM].  Values between -0.25 and 0.25
     eta=0.01; % learning rate
     tolerance=2*10^-2;
     error=inf;
@@ -108,7 +109,11 @@ function Yp=BackpropagationNetwork(X,Y)
         Wh2new=Wh2old+(eta*dh2*z1')'; % update weights of hidden layer 2
         Wh1new=Wh1old+(eta*dh1*xtrain')'; % update weights of hidden layer 1
         
-        if ~mod(iter,100000) % check error every 100000 iterations
+        if min(min(Wh1new))<-8 || max(max(Wh1new))>7 || min(min(Wh2new))<-8 || max(max(Wh2new))>7 || min(min(Wonew))<-8 || max(max(Wonew))>7
+            break;
+        end
+        
+        if ~mod(iter,1000) % check error every 100000 iterations
             hidden1 = relu(Wh1new'*[ones(Nsamps,1) X]');
             hidden2 = relu(Wh2new'*[ones(1,Nsamps); hidden1]);
             Yp=relu(Wonew'*[ones(1,Nsamps); hidden2])'; % forward pass to get output Yp given X
@@ -130,7 +135,7 @@ function Yp=BackpropagationNetwork(X,Y)
         end
     end
     hidden1 = relu(Wh1new'*[ones(Nsamps,1) X]');
-    hidden2 = relu(Wh2new'*[ones(Nsamps,1) hidden1]');
+    hidden2 = relu(Wh2new'*[ones(1,Nsamps); hidden1]);
     Yp=relu(Wonew'*[ones(1,Nsamps); hidden2])'; % forward pass to get output Yp given X
 end
 
