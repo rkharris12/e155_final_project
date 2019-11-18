@@ -18,18 +18,18 @@
 `define INPUT_LAYER_LEN 257
 
 `define HIDDEN_LAYER_WID 15*16 // 15 INT_16
-`define HIDDEN_LAYER_LEN 16
+`define HIDDEN_LAYER_LEN 30
 
 `define OUTPUT_LAYER_WID 15*16 // 15 INT_16
-`define OUTPUT_LAYER_LEN 16
+`define OUTPUT_LAYER_LEN 30
 
 `define RESULT_RD_WID 1*16 // read 1 INT_16
 `define RESULT_WD_WID 15*16 // write the whole bus
 `define RESULT_LEN 16
 
 // controller
-`define MULT_INPUT_CYCLES 258 // one cycle late for sum to update
-`define MULT_HIDDEN_CYCLES 17
+`define MULT_INPUT_CYCLES 256
+`define MULT_HIDDEN_CYCLES 15
 
 // misc.
 `define NUM_MULTS 15

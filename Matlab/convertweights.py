@@ -130,7 +130,8 @@ def frac2bin(num):
 import csv
 
 inputLayer = []
-hiddenWeights = []
+hiddenWeights1 = []
+hiddenWeights2 = []
 outputWeights = []
 newrow = []
 
@@ -143,16 +144,25 @@ with open('xtrain_q15.csv', newline='') as inputLayerFile:
         inputLayer += [newrow]
         newrow = []
 
-with open('hiddenweights.csv', newline='') as hiddenWeightsFile:
-    hiddenWeightsRead = csv.reader(hiddenWeightsFile, delimiter=' ', quotechar='|')
-    for row in hiddenWeightsRead:
+with open('wh1_q15.csv', newline='') as hiddenWeights1File:
+    hiddenWeights1Read = csv.reader(hiddenWeights1File, delimiter=' ', quotechar='|')
+    for row in hiddenWeights1Read:
         row = row[0].split(',')
         for e in row:
             newrow += [e]
-        hiddenWeights += [newrow]
+        hiddenWeights1 += [newrow]
         newrow = []
 
-with open('outputweights.csv', newline='') as outputWeightsFile:
+with open('wh2_q15.csv', newline='') as hiddenWeights2File:
+    hiddenWeights2Read = csv.reader(hiddenWeights2File, delimiter=' ', quotechar='|')
+    for row in hiddenWeights2Read:
+        row = row[0].split(',')
+        for e in row:
+            newrow += [e]
+        hiddenWeights2 += [newrow]
+        newrow = []        
+        
+with open('wo_q15.csv', newline='') as outputWeightsFile:
     outputWeightsRead = csv.reader(outputWeightsFile, delimiter=' ', quotechar='|')
     for row in outputWeightsRead:
         row = row[0].split(',')
@@ -174,11 +184,20 @@ for r in range(0, len(inputLayer)):
     
 f.close()        
         
-f = open("hiddenweights.dat","w+")
+f = open("hiddenweights1.dat","w+")
 
 out = ''
-for r in range(0, len(hiddenWeights)):
-    f.write(out.join(hiddenWeights[r]) + "\r\n");
+for r in range(0, len(hiddenWeights1)):
+    f.write(out.join(hiddenWeights1[r]) + "\r\n");
+    out = ''
+    
+f.close()
+
+f = open("hiddenweights2.dat","w+")
+
+out = ''
+for r in range(0, len(hiddenWeights2)):
+    f.write(out.join(hiddenWeights2[r]) + "\r\n");
     out = ''
     
 f.close()
