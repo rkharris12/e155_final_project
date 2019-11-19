@@ -1,19 +1,24 @@
 clear
 
-%load weights_1layer_30nodes.mat;
-%load weights_2layers_30nodes.mat;
-%load weights_2layers_15nodes.mat;
-load weights_no_overflow.mat;
+load weights_2layer_15node.mat;
 
-% split weights matrices in half columnwise
-Wh1half = [Wh1new(:,16:29) zeros(1,257)'];
-Wh2half = [Wh2new(:,16:29) zeros(1,30)'];
-Wopadded = [Wonew(:,1:10) zeros(5,30)'];
-Wohalf = [zeros(15,30)'];
-% stack each matrix half on top of the other rowwise
-wh1 = [Wh1new(:,1:15); Wh1half];
-wh2 = [Wh2new(:,1:15); Wh2half];
-wo = [Wopadded; Wohalf];
+%% Do this for 30 node layers
+% split weights matrices in half columnwise - ignore for 15 node layers
+%Wh1half = [Wh1new(:,16:29) zeros(1,257)'];
+%Wh2half = [Wh2new(:,16:29) zeros(1,30)'];
+%Wopadded = [Wonew(:,1:10) zeros(5,30)'];
+%Wohalf = [zeros(15,30)'];
+% stack each matrix half on top of the other rowwise - ignore for 15 node layers
+%wh1 = [Wh1new(:,1:15); Wh1half];
+%wh2 = [Wh2new(:,1:15); Wh2half];
+%wo = [Wopadded; Wohalf];
+%% Do this for 15 node layers
+wh1 = [zeros(257, 1), Wh1old]; % append zeros to account for 14 instead of 15
+wh2 = Wh2old;
+wo = Woold;
+Wh1new = Wh1old;
+Wh2new = Wh2old;
+Wonew = Woold;
 % make cells
 wh1c = num2cell(arrayfun(@dec2q,wh1));
 wh2c = num2cell(arrayfun(@dec2q,wh2));
@@ -27,10 +32,10 @@ cell2csv('wh2_q15.csv', wh2c);
 cell2csv('wo_q15.csv', woc);
 
 X=load("data1.txt");
-X = X/65536; % convert X to Q16.  Shift right by 16
 xtrain = X(2,:)';
-xtrain = [1;xtrain];
-xt = num2cell(arrayfun(@dec2q,xtrain));
+xtrain = [255;xtrain]; % do 255 because that will become effectively 1 when we do dec2bin
+xconverted = dec2hex(xtrain);
+xt = cellstr(xconverted);
 csvwrite('xtrain.csv', xtrain);
 cell2csv('xtrain_q15.csv', xt);
 

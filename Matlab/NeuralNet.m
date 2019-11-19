@@ -47,11 +47,14 @@ function Yp=BackpropagationNetwork(X,Y)
     L1=14; % number of hidden layer 1 nodes
     L2=14; % number of hidden layer 2 nodes
     % convert X to Q16.  Shift right by 16
-    %X = X/65536;
-    X = X/256;
-    Wh1new=(2*rand(N+1,L1)-ones(N+1,L1))/256; % (257xL1) randomly initialize N+1 dimensional (includes bias b) augmented hidden weight vectors Wh1=[wh1 wh2...whL].  Values between -0.25 and 0.25
-    Wh2new=(2*rand(L1+1,L2)-ones(L1+1,L2))/256; % (L1+1xL2) randomly initialize L1+1 dimensional (includes bias b) augmented hidden weight vectors Wh2=[wh1 wh2...whL].  Values between -0.25 and 0.25
-    Wonew=(2*rand(L2+1,M)-ones(L2+1,M))/256; % (L2+1x10) randomly initialize L2+1 dimensional (includes bias b) augmented output weight vectors Wo=[wo1 wo2...woM].  Values between -0.25 and 0.25
+    xscale=256;
+    X = X/xscale;
+    yscale = 4;
+    Y=Y/yscale;
+    wscale=512;
+    Wh1new=(2*rand(N+1,L1)-ones(N+1,L1))/wscale; % (257xL1) randomly initialize N+1 dimensional (includes bias b) augmented hidden weight vectors Wh1=[wh1 wh2...whL].  Values between -0.25 and 0.25
+    Wh2new=(2*rand(L1+1,L2)-ones(L1+1,L2))/wscale; % (L1+1xL2) randomly initialize L1+1 dimensional (includes bias b) augmented hidden weight vectors Wh2=[wh1 wh2...whL].  Values between -0.25 and 0.25
+    Wonew=(2*rand(L2+1,M)-ones(L2+1,M))/wscale; % (L2+1x10) randomly initialize L2+1 dimensional (includes bias b) augmented output weight vectors Wo=[wo1 wo2...woM].  Values between -0.25 and 0.25
     eta=0.01; % learning rate
     tolerance=2*10^-2;
     error=inf;
@@ -109,7 +112,7 @@ function Yp=BackpropagationNetwork(X,Y)
         Wh2new=Wh2old+(eta*dh2*z1')'; % update weights of hidden layer 2
         Wh1new=Wh1old+(eta*dh1*xtrain')'; % update weights of hidden layer 1
         
-        if min(min(Wh1new))<-8 || max(max(Wh1new))>7 || min(min(Wh2new))<-8 || max(max(Wh2new))>7 || min(min(Wonew))<-8 || max(max(Wonew))>7
+        if min(min(Wh1new))<-1 || max(max(Wh1new))>1 || min(min(Wh2new))<-1 || max(max(Wh2new))>1 || min(min(Wonew))<-1 || max(max(Wonew))>1
             break;
         end
         
@@ -122,8 +125,7 @@ function Yp=BackpropagationNetwork(X,Y)
             Ynew=zeros(Nsamps,1);
             Ypnew=zeros(Nsamps,1);
             for i=1:Nsamps
-                Ynew(i)=find(Y(i,:)==1);
-                %find(Yp(i,:)==max(Yp(i,:)))
+                Ynew(i)=find(Y(i,:)==1/yscale);
                 val = find(Yp(i,:)==max(Yp(i,:)));
                 if length(val) ~= 1
                     Ypnew(i) = randi(10);
