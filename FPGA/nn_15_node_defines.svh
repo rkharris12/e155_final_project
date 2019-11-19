@@ -28,8 +28,8 @@
 `define RESULT_LEN 16
 
 // controller
-`define MULT_INPUT_CYCLES 258 // one cycle late for sum to update
-`define MULT_HIDDEN_CYCLES 17
+`define MULT_INPUT_CYCLES 256 // one cycle late for sum to update
+`define MULT_HIDDEN_CYCLES 15
 
 // misc.
 `define NUM_MULTS 15

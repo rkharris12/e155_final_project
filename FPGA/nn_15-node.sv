@@ -54,17 +54,19 @@ module datapath(input  logic                         clk,
                 input  logic [1:0]                   rd_src2,
                 input  logic                         clear,
                 input  logic [`UINT_8-1:0]           img_byte,
-                input  logic [`HIDDEN_LAYER_WID-1:0] rd1, rd2, rd3, prev_out,
+                input  logic [`HIDDEN_LAYER_WID-1:0] rd1, rd2, rd3, 
+					 input  logic [`RESULT_RD_WID-1:0]    prev_out,
                 output logic [`RESULT_WD_WID-1:0]    result,
-                output logic [9:0]         classification);
+                output logic [9:0]         			  classification);
     
     logic [`INT_16-1:0] img_int16;
     logic signed [`INT_16-1:0] src1;
     logic signed [`HIDDEN_LAYER_WID-1:0] src2;
     
     // extend incoming image to int16, convert to Q15
-    assign img_int16 = {1'b0, img_byte, 7'b0}; // already effectively shifts by 8, between 0 and 1
-    //assign img_int16_div = img_int16 >> 8; // TODO: change divisor
+    //assign img_int16 = {1'b0, img_byte, 7'b0}; // already effectively shifts by 8, between 0 and 1
+    assign img_int16 = {img_byte, 8'b0}; // V: the inputs I used for this test require it to be extended this way
+	 //assign img_int16_div = img_int16 >> 8; // TODO: change divisor
     
     // select read sources
     /*  src1 | src2
@@ -198,7 +200,7 @@ module dpsl(input logic clk, clear,
             //mux2 #(8) mul_sel1(gw[gj+1].rd2b, gw[gj+1].rd1b, rd_src, b_mul);
              
             // mul
-            assign prod = src1 * src2;
+            mul #(`INT_16) m(src1, src2,prod);
             //assign trunc_prod = prod[31:16];
             
             // acc
@@ -218,13 +220,104 @@ module controller(input  logic                clk, reset,
                   output logic [1:0]          rd_src2, 
                   output logic                clear);
 
-    //typedef enum {RESET, MULTIPLY, TRANSITION, DONE} statetype;
-    //statetype state, nextstate;
+   //typedef enum {RESET, MULTIPLY, TRANSITION, DONE} statetype;
+   //statetype state, nextstate;
+	 
+	typedef enum {S0, S2, S3, S4, S5, S6, S7, S8, S9} statetype;
+   statetype state, nextstate;
+				  
+	// flags
+   logic input_layer_done, hidden_layer_done;
+   logic [1:0] layers_done_count;
+
+	always_ff @(posedge clk, posedge reset) begin
+		if (reset)	state <= S0;
+      else        state <= nextstate;
+    end
+        
+    always_comb begin
+        case(state)
+            S0:    if (!reset)  nextstate = S2;
+						 else			  nextstate = S0;
+				S2:	 if (cycle == `MULT_INPUT_CYCLES) nextstate = S3;
+						 else			  nextstate = S2;
+				S3:					  nextstate = S4;
+				S4:					  nextstate = S5;
+				S5:	 if (cycle == `MULT_HIDDEN_CYCLES) nextstate = S6;
+						 else			  nextstate = S5;
+				S6:					  nextstate = S7;
+				S7:					  nextstate = S8;
+				S8:	 if (cycle == `MULT_HIDDEN_CYCLES) nextstate = S9;
+						 else			  nextstate = S8;
+				S9:					  nextstate = S9;
+				default:				  nextstate = S0;
+        endcase
+    end
+	 
+   always_ff @(posedge clk)
+	  if (state==S0) begin
+			cycle <= 0;
+			layers_done_count <= 0;
+	  end
+	  else if (state==S2) begin       
+			cycle <= cycle + 1'b1;
+	  end
+	  else if (state==S3) begin // reset when cycle == 258 for input layer
+            cycle <= 0;
+            layers_done_count <= layers_done_count + 1'b1;
+     end
+	  else if (state==S4) begin 
+            cycle <= 0; // delay to calculate final sum
+     end  
+	  else if (state==S5) begin 
+            cycle <= cycle + 1'b1;
+     end
+	  else if (state==S6) begin
+				cycle <= 0;
+            layers_done_count <= layers_done_count + 1'b1;
+     end
+	  else if (state==S7) begin 
+            cycle <= 0; 
+     end 
+	  else if (state==S8) begin 
+            cycle <= cycle + 1'b1;  
+     end
+	
+   always_comb begin
+	  if (state==S0) begin
+			we = 0;
+			clear = 1;
+			input_layer_done = 0;
+			hidden_layer_done = 0;
+	  end
+	  else if (state==S2) begin     
+			clear = 0;
+	  end
+	  else if (state==S3) begin 
+            we = 1;
+            input_layer_done = 1;
+     end
+	  else if (state==S4) begin 
+            we = 0;
+            clear = 1;
+     end  
+	  else if (state==S5) begin 
+				clear = 0;
+     end
+	  else if (state==S6) begin
+            we = 1;
+            hidden_layer_done = 1;
+     end
+	  else if (state==S7) begin 
+            we = 0;
+            clear = 1;
+     end 
+	  else if (state==S8) begin 
+				clear = 0;
+     end
+	 end 
     
-    // flags
-    logic input_layer_done, hidden_layer_done;
-    logic [1:0] layers_done_count;
-      
+    /*
     always_ff @(posedge clk, posedge reset)
         if (reset) begin
             cycle <= 0;
@@ -269,6 +362,10 @@ module controller(input  logic                clk, reset,
         end
         
     assign rd_src1 = input_layer_done; //TODO: make better choice
+    assign rd_src2 = layers_done_count;
+	 */
+	 
+	 assign rd_src1 = input_layer_done; //TODO: make better choice
     assign rd_src2 = layers_done_count;
     
 endmodule
@@ -376,10 +473,11 @@ endmodule
 //
 
 module mul #(parameter WIDTH = 8)
-            (input  logic [WIDTH-1:0] a, b,
-             output logic [2*WIDTH-1:0] y);
-
-  assign y = a * b;
+            (input  logic signed [WIDTH-1:0] a, b,
+             output logic signed [2*WIDTH-1:0] y);
+  
+  assign y = (a * b) << 1;
+  
 endmodule
 
 // added signed
