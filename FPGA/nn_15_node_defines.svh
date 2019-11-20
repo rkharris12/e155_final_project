@@ -18,7 +18,7 @@
 `define INPUT_LAYER_LEN 257
 
 `define HIDDEN_LAYER_WID 15*16 // 15 INT_16
-`define HIDDEN_LAYER_LEN 15 // changed to 15
+`define HIDDEN_LAYER_LEN 16
 
 `define OUTPUT_LAYER_WID 15*16 // 15 INT_16
 `define OUTPUT_LAYER_LEN 16

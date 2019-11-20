@@ -64,8 +64,8 @@ module datapath(input  logic                         clk,
     logic signed [`HIDDEN_LAYER_WID-1:0] src2;
     
     // extend incoming image to int16, convert to Q15
-    //assign img_int16 = {1'b0, img_byte, 7'b0}; // already effectively shifts by 8, between 0 and 1
-    assign img_int16 = {img_byte, 8'b0}; // V: the inputs I used for this test require it to be extended this way
+    assign img_int16 = {1'b0, img_byte, 7'b0}; // aeffectively shifts by 8, to between 0 and 1
+    //assign img_int16 = {img_byte, 8'b0}; // V: the inputs I used for this test require it to be extended this way
 	 //assign img_int16_div = img_int16 >> 8; // TODO: change divisor
     
     // select read sources
@@ -80,11 +80,12 @@ module datapath(input  logic                         clk,
      mux3 #(`HIDDEN_LAYER_WID) src2mux(rd1, rd2, rd3, rd_src2, src2);
     
     // generate datapath wires
+	 // ORDERING:  first column of weights is the most significant bits of src2.  Therefore, d1 corresponds to first hidden weight, d2 to second, ...
     genvar gi;
     generate 
         for (gi=1 ; gi<`NUM_MULTS+1; gi++) begin : gw // generate wires
             logic signed [`INT_16-1:0] src2b; // added signed
-            assign src2b = src2[(`INT_16*gi-1) -: `INT_16];
+            assign src2b = src2[(`INT_16*(16-gi)-1) -: `INT_16]; // changed from *gi to *(16-gi) so that d1 is the first column, or the msb
            // assign rd2b = rd2[(8*gi-1) -: 8];
         end
     endgenerate
@@ -146,40 +147,23 @@ module datapath(input  logic                         clk,
 	 dpsl d14(clk, clear, src1, gw[14].src2b, activ_sum14);
 	 dpsl d15(clk, clear, src1, gw[15].src2b, activ_sum15);
 	 
-	 // TODO: Add bias
-	 assign result = {activ_sum15[15:0], 
-                     activ_sum14[15:0], 
-                     activ_sum13[15:0],
-                     activ_sum12[15:0], 
-                     activ_sum11[15:0], 
-                     activ_sum10[15:0],
-                     activ_sum9[15:0], 
-                     activ_sum8[15:0], 
-                     activ_sum7[15:0], 
-                     activ_sum6[15:0], 
-                     activ_sum5[15:0], 
-                     activ_sum4[15:0], 
-                     activ_sum3[15:0], 
-                     activ_sum2[15:0], 
-                     activ_sum1[15:0]};
+	 // switched ordering
+	 assign result = {activ_sum1[31:16], 
+                     activ_sum2[31:16], 
+                     activ_sum3[31:16],
+                     activ_sum4[31:16], 
+                     activ_sum5[31:16], 
+                     activ_sum6[31:16],
+                     activ_sum7[31:16], 
+                     activ_sum8[31:16], 
+                     activ_sum9[31:16], 
+                     activ_sum10[31:16], 
+                     activ_sum11[31:16], 
+                     activ_sum12[31:16], 
+                     activ_sum13[31:16], 
+                     activ_sum14[31:16], 
+                     activ_sum15[31:16]};
     
-	 /*
-    assign result = {dpsl[15].activ_sum, 
-                     dpsl[14].activ_sum, 
-                     dpsl[13].activ_sum,
-                     dpsl[12].activ_sum, 
-                     dpsl[11].activ_sum, 
-                     dpsl[10].activ_sum,
-                     dpsl[9].activ_sum, 
-                     dpsl[8].activ_sum, 
-                     dpsl[7].activ_sum, 
-                     dpsl[6].activ_sum, 
-                     dpsl[5].activ_sum, 
-                     dpsl[4].activ_sum, 
-                     dpsl[3].activ_sum, 
-                     dpsl[2].activ_sum, 
-                     dpsl[1].activ_sum, 
-                     dpsl[0].activ_sum}; */
     
 	 // TODO: assign classification
     assign classification = 10'b0;
@@ -212,7 +196,7 @@ module dpsl(input logic clk, clear,
 
 endmodule
 
-//TODO: Make this an FSM.  Cycle should stay at zero for 1 more clk cycle after reset
+
 module controller(input  logic                clk, reset,
                   output logic                we,
                   output logic [`ADR_LEN-1:0] cycle,
@@ -223,7 +207,7 @@ module controller(input  logic                clk, reset,
    //typedef enum {RESET, MULTIPLY, TRANSITION, DONE} statetype;
    //statetype state, nextstate;
 	 
-	typedef enum {S0, S2, S3, S4, S5, S6, S7, S8, S9} statetype;
+	typedef enum {S0, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11} statetype;
    statetype state, nextstate;
 				  
 	// flags
@@ -249,7 +233,9 @@ module controller(input  logic                clk, reset,
 				S7:					  nextstate = S8;
 				S8:	 if (cycle == `MULT_HIDDEN_CYCLES) nextstate = S9;
 						 else			  nextstate = S8;
-				S9:					  nextstate = S9;
+				S9:					  nextstate = S10;
+				S10:					  nextstate = S11;
+				S11:					  nextstate = S11;
 				default:				  nextstate = S0;
         endcase
     end
@@ -284,86 +270,77 @@ module controller(input  logic                clk, reset,
      end
 	
    always_comb begin
-	  if (state==S0) begin
+		case(state)
+		S0:	begin
+					we = 0;
+					clear = 1;
+					input_layer_done = 0;
+					hidden_layer_done = 0;
+				end
+		S2:	begin
+					we = 0;
+					clear = 0;
+					input_layer_done = 0;
+					hidden_layer_done = 0;
+				end
+		S3:	begin
+					we = 1;
+					clear = 0;
+					input_layer_done = 1;
+					hidden_layer_done = 0;
+				end
+		S4:	begin
+					we = 0;
+					clear = 1;
+					input_layer_done = 1;
+					hidden_layer_done = 0;
+				end
+		S5:	begin
+					we = 0;
+					clear = 0;
+					input_layer_done = 1;
+					hidden_layer_done = 0;
+				end
+		S6:	begin
+					we = 1;
+					clear = 0;
+					input_layer_done = 1;
+					hidden_layer_done = 1;
+				end
+		S7:	begin
+					we = 0;
+					clear = 1;
+					input_layer_done = 1;
+					hidden_layer_done = 1;
+				end
+		S8:	begin
+					we = 0;
+					clear = 0;
+					input_layer_done = 1;
+					hidden_layer_done = 1;
+				end
+		S9:	begin
+					we = 1;
+					clear = 0;
+					input_layer_done = 1;
+					hidden_layer_done = 1;
+				end
+		S10:	begin
+					we = 0;
+					clear = 1;
+					input_layer_done = 1;
+					hidden_layer_done = 1;
+				end
+		S11:	begin
 			we = 0;
-			clear = 1;
-			input_layer_done = 0;
-			hidden_layer_done = 0;
-	  end
-	  else if (state==S2) begin     
 			clear = 0;
-	  end
-	  else if (state==S3) begin 
-            we = 1;
-            input_layer_done = 1;
-     end
-	  else if (state==S4) begin 
-            we = 0;
-            clear = 1;
-     end  
-	  else if (state==S5) begin 
-				clear = 0;
-     end
-	  else if (state==S6) begin
-            we = 1;
-            hidden_layer_done = 1;
-     end
-	  else if (state==S7) begin 
-            we = 0;
-            clear = 1;
-     end 
-	  else if (state==S8) begin 
-				clear = 0;
-     end
-	 end 
-    
-    /*
-    always_ff @(posedge clk, posedge reset)
-        if (reset) begin
-            cycle <= 0;
-            we <= 0;
-            clear <= 1;
-            input_layer_done <= 0;
-            hidden_layer_done <= 0;
-            layers_done_count <= 0;
-        end
-        else if (layers_done_count == `NUM_LAYERS) begin
-            cycle <= 0;
-            clear <= 1;
-        end
-        // reset when cycle == 256 for input layer
-        else if (cycle == `MULT_INPUT_CYCLES) begin 
-            cycle <= 0;
-            we <= 1;
-            input_layer_done <= 1;
-            layers_done_count <= layers_done_count + 1'b1;
-        end
-        else if (input_layer_done) begin 
-            cycle <= 0; // delay to calculate final sum
-            we <= 0;
-            clear <= 1;
-        end        
-        // reset when cycle == 9 for hidden layer
-        else if ((cycle == `MULT_HIDDEN_CYCLES) & input_layer_done) begin
-            cycle <= 0;
-            we <= 1;
-            hidden_layer_done <= 1;
-            layers_done_count <= layers_done_count + 1'b1;
-        end
-        else if (hidden_layer_done) begin 
-            cycle <= 0; // delay to calculate final sum
-            we <= 0;
-            clear <= 1;
-            hidden_layer_done <= 0;
-        end   
-        else begin       
-            cycle <= cycle + 1'b1;   
-            clear <= 0;
-        end
-        
-    assign rd_src1 = input_layer_done; //TODO: make better choice
-    assign rd_src2 = layers_done_count;
-	 */
+			input_layer_done = 1;
+			hidden_layer_done = 1;
+		end
+		endcase
+	end	
+	
+	
 	 
 	 assign rd_src1 = input_layer_done; //TODO: make better choice
     assign rd_src2 = layers_done_count;
@@ -449,7 +426,7 @@ module oram(input  logic                      clk, we,
   
   always_ff @(posedge clk)
     if (we) begin
-        RAM[0]  <= 16'h0; 
+        RAM[0]  <= 16'h7FFF; 
         RAM[1]  <= wd[`INT_16*15-1 -:`INT_16]; 
         RAM[2]  <= wd[`INT_16*14-1 -:`INT_16]; 
         RAM[3]  <= wd[`INT_16*13-1 -:`INT_16]; 
@@ -464,7 +441,7 @@ module oram(input  logic                      clk, we,
         RAM[12] <= wd[`INT_16*4-1  -:`INT_16]; 
         RAM[13] <= wd[`INT_16*3-1  -:`INT_16]; 
         RAM[14] <= wd[`INT_16*2-1  -:`INT_16];
-        RAM[15] <= wd[`INT_16*1-1  -:`INT_16];
+		  RAM[15] <= wd[`INT_16*1-1  -:`INT_16];
     end
 endmodule
 
