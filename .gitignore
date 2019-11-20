@@ -3,4 +3,12 @@
 *.wlf
 **/work/
 *.dat
+*.mat
 *.csv
+**/db/
+**/incremental_db/
+**/output_files/
+**/simulation/
+*description.txt
+*.qpf
+*.qsf
