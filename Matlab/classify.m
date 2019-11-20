@@ -1,6 +1,6 @@
 clear
 
-load weights_2layer_15node.mat;
+load weights_2layers_15nodes.mat;
 
 %% Do this for 30 node layers
 % split weights matrices in half columnwise - ignore for 15 node layers
@@ -13,9 +13,9 @@ load weights_2layer_15node.mat;
 %wh2 = [Wh2new(:,1:15); Wh2half];
 %wo = [Wopadded; Wohalf];
 %% Do this for 15 node layers
-wh1 = [zeros(257, 1), Wh1old]; % append zeros to account for 14 instead of 15
+wh1 = Wh1old;
 wh2 = Wh2old;
-wo = Woold;
+wo = [Woold zeros(16,5)];
 Wh1new = Wh1old;
 Wh2new = Wh2old;
 Wonew = Woold;
@@ -33,12 +33,13 @@ cell2csv('wo_q15.csv', woc);
 
 X=load("data1.txt");
 xtrain = X(2,:)';
-xtrain = [255;xtrain]; % do 255 because that will become effectively 1 when we do dec2bin
+xtrain = [255;xtrain]; % do 255 because that will become effectively 1 when we do dec2hex
 xconverted = dec2hex(xtrain);
 xt = cellstr(xconverted);
 csvwrite('xtrain.csv', xtrain);
 cell2csv('xtrain_q15.csv', xt);
 
+xtrain = xtrain/256;
 ah1=Wh1new'*xtrain; % activation (net input) of hidden layer 1
 h1 = num2cell(arrayfun(@dec2q,ah1));
 csvwrite('h1.csv', ah1);
