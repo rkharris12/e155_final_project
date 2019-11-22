@@ -1,6 +1,6 @@
 clear
 
-load weights_2layers_15nodes.mat;
+load weights_2layers_150nodes.mat;
 
 %% Do this for 30 node layers
 % split weights matrices in half columnwise - ignore for 15 node layers

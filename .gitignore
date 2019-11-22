@@ -3,7 +3,7 @@
 *.wlf
 **/work/
 *.dat
-*.mat
+
 *.csv
 **/db/
 **/incremental_db/

@@ -44,16 +44,18 @@ end
 function Yp=BackpropagationNetwork(X,Y)
     [Nsamps D]=size(X); % Nsamps is number of samples (2240), D is dimension (256)
     N=D; M=10; % number of input layer nodes and output layer nodes, respectively
-    L1=15; % number of hidden layer 1 nodes
-    L2=15; % number of hidden layer 2 nodes
+    L1=150; % number of hidden layer 1 nodes
+    L2=150; % number of hidden layer 2 nodes
+    %L3=30; % number of hidden layer 3 nodes
     % convert X to Q16.  Shift right by 16
     xscale=256;
     X = X/xscale;
     yscale = 10;
     Y=Y/yscale;
-    wscale=500;
+    wscale=50;
     Wh1new=(2*rand(N+1,L1)-ones(N+1,L1))/wscale; % (257xL1) randomly initialize N+1 dimensional (includes bias b) augmented hidden weight vectors Wh1=[wh1 wh2...whL].  Values between -0.25 and 0.25
     Wh2new=(2*rand(L1+1,L2)-ones(L1+1,L2))/wscale; % (L1+1xL2) randomly initialize L1+1 dimensional (includes bias b) augmented hidden weight vectors Wh2=[wh1 wh2...whL].  Values between -0.25 and 0.25
+    %Wh3new=(2*rand(L2+1,L3)-ones(L2+1,L3))/wscale; % (L2+1xL3) randomly initialize L1+1 dimensional (includes bias b) augmented hidden weight vectors Wh3=[wh1 wh2...whL].  Values between -0.25 and 0.25
     Wonew=(2*rand(L2+1,M)-ones(L2+1,M))/wscale; % (L2+1x10) randomly initialize L2+1 dimensional (includes bias b) augmented output weight vectors Wo=[wo1 wo2...woM].  Values between -0.25 and 0.25
     eta=0.01; % learning rate
     tolerance=2*10^-2;
@@ -61,11 +63,13 @@ function Yp=BackpropagationNetwork(X,Y)
     iter=0;
     dgh1 = ones(L1,1);
     dgh2 = ones(L2,1);
+    %dgh3 = ones(L3,1);
     dgo = ones(M,1);
     while error>tolerance
         iter=iter+1;
         Wh1old=Wh1new;
         Wh2old=Wh2new;
+        %Wh3old=Wh3new;
         Woold=Wonew;
         n=randi(Nsamps);
         xtrain=X(n,:)'; % (256x1) randomly select a training sample
@@ -108,6 +112,23 @@ function Yp=BackpropagationNetwork(X,Y)
             break;
         end
         z2=[1;ah2]; % augmented output of hidden layer 2
+%         ah3=Wh3old'*z2; % activation (net input) of hidden layer 3
+%         for i=1:length(ah3) % Relu activation function
+%             if (ah3(i) >= 1) || (ah3(i) <= -1) % prevent overflow
+%                 flag=1;
+%                 break;
+%             end
+%             if ah3(i) < 0
+%                 ah3(i) = 0;
+%                 dgh3(i) = 0;
+%             else
+%                 dgh3(i) = 1;
+%             end
+%         end
+%         if flag==1
+%             break;
+%         end
+%         z3=[1;ah3]; % augmented output of hidden layer 3
         ao=Woold'*z2; % activation (net input) of output layer
         for i=1:length(ao) % Relu activation function
             if (ao(i) >= 1) || (ao(i) <= -1) % prevent overflow
@@ -127,21 +148,44 @@ function Yp=BackpropagationNetwork(X,Y)
         yp=ao'; % output of output layer
         
         % backward error propagation
+        % 3 layers
+%         do=(ytrain'-yp').*dgo; % find d of output layer (Mx1 vector)
+%         dh3=(Woold(2:L3+1,1:M)*do).*dgh3; % find d of hidden layer 3 (L3x1 vector).  Remove the first row of Wo: the bias offset
+%         dh2=(Wh3old(2:L2+1,1:L3)*dh3).*dgh2; % find d of hidden layer 2 (L2x1 vector).  Remove the first row of Wh3: the bias offset
+%         dh1=(Wh2old(2:L1+1,1:L2)*dh2).*dgh1; % find d of hidden layer 1 (L1x1 vector).  Remove the first row of Wh2: the bias offset
+% 
+%         Wonew=Woold+(eta*do*z3')'; % update weights of output layer
+%         Wh3new=Wh3old+(eta*dh3*z2')'; % update weights of hidden layer 3
+%         Wh2new=Wh2old+(eta*dh2*z1')'; % update weights of hidden layer 2
+%         Wh1new=Wh1old+(eta*dh1*xtrain')'; % update weights of hidden layer 1
+
+        % 2 layers
         do=(ytrain'-yp').*dgo; % find d of output layer (Mx1 vector)
         dh2=(Woold(2:L2+1,1:M)*do).*dgh2; % find d of hidden layer 2 (L2x1 vector).  Remove the first row of Wo: the bias offset
         dh1=(Wh2old(2:L1+1,1:L2)*dh2).*dgh1; % find d of hidden layer 1 (L1x1 vector).  Remove the first row of Wh2: the bias offset
+        
         Wonew=Woold+(eta*do*z2')'; % update weights of output layer
         Wh2new=Wh2old+(eta*dh2*z1')'; % update weights of hidden layer 2
         Wh1new=Wh1old+(eta*dh1*xtrain')'; % update weights of hidden layer 1
-        
-        if min(min(Wh1new))<-1 || max(max(Wh1new))>1 || min(min(Wh2new))<-1 || max(max(Wh2new))>1 || min(min(Wonew))<-1 || max(max(Wonew))>1
+
+%         if ~any(do) || ~any(dh3) || ~any(dh2) || ~any(dh1) % check if the network is being trained properly
+%             break;
+%         end
+
+        if min(min(Wh1new))<-1 || max(max(Wh1new))>1 || min(min(Wh2new))<-1 || max(max(Wh2new))>1 || min(min(Wonew))<-1 || max(max(Wonew))>1 % check for overflow
             break;
         end
         
         if ~mod(iter,1000) % check error every 100000 iterations
+            % 2 layer
             hidden1 = relu(Wh1new'*[ones(Nsamps,1) X]');
             hidden2 = relu(Wh2new'*[ones(1,Nsamps); hidden1]);
             Yp=relu(Wonew'*[ones(1,Nsamps); hidden2])'; % forward pass to get output Yp given X
+            % 3 layer
+%             hidden1 = relu(Wh1new'*[ones(Nsamps,1) X]');
+%             hidden2 = relu(Wh2new'*[ones(1,Nsamps); hidden1]);
+%             hidden3 = relu(Wh3new'*[ones(1,Nsamps); hidden2]);
+%             Yp=relu(Wonew'*[ones(1,Nsamps); hidden3])'; % forward pass to get output Yp given X
             % convert Y and Yp to 1-D integer labels so my confusion matrix
             % function can work on them
             Ynew=zeros(Nsamps,1);
@@ -158,9 +202,15 @@ function Yp=BackpropagationNetwork(X,Y)
             [Cm error]=ConfusionMatrix(Ynew,Ypnew);
         end
     end
+    % 2 layer
     hidden1 = relu(Wh1new'*[ones(Nsamps,1) X]');
     hidden2 = relu(Wh2new'*[ones(1,Nsamps); hidden1]);
     Yp=relu(Wonew'*[ones(1,Nsamps); hidden2])'; % forward pass to get output Yp given X
+    % 3 layer
+%     hidden1 = relu(Wh1new'*[ones(Nsamps,1) X]');
+%     hidden2 = relu(Wh2new'*[ones(1,Nsamps); hidden1]);
+%     hidden3 = relu(Wh3new'*[ones(1,Nsamps); hidden2]);
+%     Yp=relu(Wonew'*[ones(1,Nsamps); hidden3])'; % forward pass to get output Yp given X
 end
 
 
