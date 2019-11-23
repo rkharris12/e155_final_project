@@ -5,6 +5,7 @@ function main
     rng(4)
     
     X=load("data1.txt"); % 2240x256 dimensional, 10 class handwritten number data
+    %csvwrite('images.csv', X);
     
     % labels for handwritten digit data, the location in the array
     % corresponds to the digit, first 224 are 0, next 224 are 1, ...
@@ -19,6 +20,7 @@ function main
     Y(1569:1792,:)=[zeros(224,7) ones(224,1) zeros(224,2)];
     Y(1793:2016,:)=[zeros(224,8) ones(224,1) zeros(224,1)];
     Y(2017:2240,:)=[zeros(224,9) ones(224,1)];
+    %csvwrite('labels.csv', Y);
 
     Yp=BackpropagationNetwork(X,Y); % (2240x10) get the results
     

@@ -1,3 +1,7 @@
+# Veronica Cortes
+# vcortes@g.hmc.edu
+# 16 November 2019
+
 # ----------------
 # Binary Math
 # ----------------
@@ -132,6 +136,7 @@ import csv
 inputLayer = []
 hiddenWeights1 = []
 hiddenWeights2 = []
+hiddenWeights3 = []
 outputWeights = []
 newrow = []
 
@@ -161,6 +166,15 @@ with open('wh2_q15.csv', newline='') as hiddenWeights2File:
             newrow += [e]
         hiddenWeights2 += [newrow]
         newrow = []        
+        
+with open('wh3_q15.csv', newline='') as hiddenWeights3File:
+    hiddenWeights3Read = csv.reader(hiddenWeights3File, delimiter=' ', quotechar='|')
+    for row in hiddenWeights3Read:
+        row = row[0].split(',')
+        for e in row:
+            newrow += [e]
+        hiddenWeights3 += [newrow]
+        newrow = []           
         
 with open('wo_q15.csv', newline='') as outputWeightsFile:
     outputWeightsRead = csv.reader(outputWeightsFile, delimiter=' ', quotechar='|')
@@ -202,6 +216,15 @@ for r in range(0, len(hiddenWeights2)):
     
 f.close()
 
+f = open("hiddenweights3.dat","w+")
+
+out = ''
+for r in range(0, len(hiddenWeights3)):
+    f.write(out.join(hiddenWeights3[r]) + "\r\n");
+    out = ''
+    
+f.close()
+
 f = open("outputweights.dat","w+")
 
 out = ''
@@ -210,50 +233,3 @@ for r in range(0, len(outputWeights)):
     out = ''
     
 f.close()
-
-# ----------------
-# Old read CSVs reference
-# ----------------
-
-#with open('inputlayer.csv', newline='') as inputLayerFile:
-#    inputLayerRead = csv.reader(inputLayerFile, delimiter=' ', quotechar='|')
-#    for row in inputLayerRead:
-#        if ('\ufeff' in row[0]):
-#            row = row[0].split('\ufeff')[1].split(',')
-#        else:
-#            row = row[0].split(',')
-#        for e in row:
-#            newrow += [hex(int(e))[2::]]
-#        inputLayer += [newrow]
-#        newrow = []
-
-#with open('xtrain.csv', newline='') as inputLayerFile:
-#    inputLayerRead = csv.reader(inputLayerFile, delimiter=' ', quotechar='|')
-#    for row in inputLayerRead:
-#        row = row[0].split(',')
-#        for e in row:
-#            newrow += [hex2(int(e))[2::]]
-#        inputLayer += newrow
-#        newrow = []
-
-#with open('Whnew.csv', newline='') as hiddenWeightsFile:
-#   hiddenWeightsRead = csv.reader(hiddenWeightsFile, delimiter=' ', quotechar='|')
-#   for row in hiddenWeightsRead:
-#       row = row[0].split(',')
-#       for e in row:
-#           newrow += [frac2bin(float(e))]
-#       hiddenWeights += [newrow]
-#       newrow = []
-        
-#with open('Wonew.csv', newline='') as outputWeightsFile:
-#   outputWeightsRead = csv.reader(outputWeightsFile, delimiter=' ', quotechar='|')
-#   for row in outputWeightsRead:
-#       row =  row[0].split(',')
-#       for e in row:
-#           newrow += [frac2bin(float(e))]
-#       outputWeights += [newrow]
-#       newrow = []
-
-#f = open("inputlayer.dat","w+")
-#f.write('0x' + out.join(inputLayer) + "\r\n");  
-#f.close()

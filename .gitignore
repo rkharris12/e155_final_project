@@ -2,6 +2,7 @@
 *.cr.mti
 *.wlf
 **/work/
+**/Matlab/Weights/
 *.dat
 
 *.csv
@@ -12,3 +13,6 @@
 *description.txt
 *.qpf
 *.qsf
+*.qws
+*b*.txt
+*w*.txt
