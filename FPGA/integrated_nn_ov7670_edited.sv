@@ -18,8 +18,7 @@ module top(input  logic       clk,
 		   input  logic       sdi,
 		   output logic       sdo,
 		   output logic       done,
-		   output logic       xclk,
-		   output logic [9:0] classification);
+		   output logic       xclk);
 
 	assign xclk = clk; // drive camera xclk with 40 Hz from oscillator				  
 	
@@ -30,11 +29,11 @@ module top(input  logic       clk,
 				  	
 	decimate dec(pclk, reset, vsync, href, d0, d1, d2, d3, d4, d5, d6, d7, decimate_done, frame);
 	
-	spi s(sck, sdi, sdo, done, classification);
+	spi s(sck, sdi, sdo, done, result);
 	
 	choose_pixel cp(clk, cycle, frame, px_uint8);
     
-    nn feedforward(clk, reset, decimate_done, px_uint8, cycle, classification, done);
+   nn feedforward(clk, reset, decimate_done, px_uint8, cycle, result, done);
 				  
 endmodule
 
@@ -43,9 +42,10 @@ endmodule
 //
 
 module nn(input  logic                  clk, reset,
+			 input  logic						 decimate_done,
           input  logic [`UINT_8-1:0]    px_uint8,
           output logic [`ADR_LEN-1:0]   cycle,
-          output logic [0:9]            classification,
+          output logic [0:`NUM_MULTS-1] [`INT_16-1:0] result,
           output logic                  done);
 
     // wires
@@ -53,7 +53,7 @@ module nn(input  logic                  clk, reset,
     logic                                rd_src1;
     logic [1:0]                          rd_src2;
     logic [`HIDDEN_LAYER_WID-1:0]        rd1, rd2, rd3, rd4; // rd from weight ROMs
-    logic [0:`NUM_MULTS-1] [`INT_16-1:0] result;        // wd to RAM
+    //logic [0:`NUM_MULTS-1] [`INT_16-1:0] result;        // wd to RAM
     logic [`RESULT_RD_WID-1:0]           prev_result;   // rd from RAM
     
     // weight memories
@@ -68,10 +68,10 @@ module nn(input  logic                  clk, reset,
     oram result_ram(clk, we, cycle, result, prev_result);
     
     // controller
-    nn_controller c(clk, reset, we, cycle, rd_src1, rd_src2, clear, done);
+    nn_controller c(clk, reset, decimate_done, we, cycle, rd_src1, rd_src2, clear, done);
     
     // datapath
-    nn_datapath d(clk, rd_src1, rd_src2, clear, px_uint8, rd1, rd2, rd3, rd4, prev_result, result, classification);
+    nn_datapath d(clk, rd_src1, rd_src2, clear, px_uint8, rd1, rd2, rd3, rd4, prev_result, result);
     
     
 endmodule
@@ -82,9 +82,9 @@ module nn_datapath(input  logic                                clk,
                 input  logic                                clear,
                 input  logic [`UINT_8-1:0]                  px_uint8,
                 input  logic [`HIDDEN_LAYER_WID-1:0]        rd1, rd2, rd3, rd4, 
-				input  logic [`RESULT_RD_WID-1:0]           prev_result,
-                output logic [0:`NUM_MULTS-1] [`INT_16-1:0] result,
-                output logic [0:9]                          classification);
+					 input  logic [`RESULT_RD_WID-1:0]           prev_result,
+                output logic [0:`NUM_MULTS-1] [`INT_16-1:0] result); // Can we just make this a 1-D array?  Hard to send 2-D array over SPI.  Why is the ordering flipped?
+					 // maybe we don't need "classification", and instead we can just send result directly over SPI 
     
     logic        [`INT_16-1:0]                  px_int16;
     logic signed [`INT_16-1:0]                  src1;
@@ -122,24 +122,24 @@ module nn_datapath(input  logic                                clk,
     endgenerate 
     
 	// TODO: assign classification (can't send out 10 int16s because of I/O pin limit)
-    assign classification = '0;
+    //assign classification = '0;
        
 endmodule
 
 module nn_controller(input  logic                clk, reset,
-                  output logic                we,
-                  output logic [`ADR_LEN-1:0] cycle,
-                  output logic                rd_src1,
-                  output logic [1:0]          rd_src2, 
-                  output logic                clear,
-                  output logic                done);
+							input logic 					 decimate_done,
+							output logic                we,
+							output logic [`ADR_LEN-1:0] cycle,
+							output logic                rd_src1,
+							output logic [1:0]          rd_src2, 
+							output logic                clear,
+							output logic                done);
 	 
 	typedef enum logic [5:0] {RESET, 
                               MUL1, WB1, CLR1, 
                               MUL2, WB2, CLR2, 
                               MUL3, WB3, CLR3, 
-                              MUL4, WB4, CLR4, 
-                              DONE} statetype;
+                              MUL4, WB4} statetype;
     statetype state, nextstate;
     
     // control signals
@@ -155,7 +155,7 @@ module nn_controller(input  logic                clk, reset,
         
     always_comb begin
         case(state)
-                RESET: if (!reset)                       nextstate = MUL1;
+                RESET: if (decimate_done)          nextstate = MUL1;
 					   else			                     nextstate = RESET;
 				MUL1:  if (cycle == `MULT_INPUT_CYCLES)  nextstate = WB1;
 					   else			                     nextstate = MUL1;
@@ -171,9 +171,9 @@ module nn_controller(input  logic                clk, reset,
 				CLR3:					                 nextstate = MUL4;
                 MUL4:  if (cycle == `MULT_HIDDEN_CYCLES) nextstate = WB4;
 					   else			                     nextstate = MUL4;
-				WB4:					                 nextstate = CLR4;
-				CLR4:					                 nextstate = DONE;
-				DONE:					                 nextstate = DONE;
+				WB4:					                 nextstate = WB4;
+				//CLR4:					                 nextstate = DONE;
+				//DONE:					                 nextstate = DONE;
 				default:				                 nextstate = RESET;
         endcase
     end
@@ -206,8 +206,8 @@ module nn_controller(input  logic                clk, reset,
             CLR3:	    cycle <= 0;  
             MUL4:	    cycle <= cycle + 1'b1;
             WB4:	    cycle <= 0; // TODO: finish implementing
-            CLR4:	    cycle <= 0; // TODO: finish implementing
-            DONE:	    cycle <= 0; // TODO: finish implementing
+            //CLR4:	    cycle <= 0; // TODO: finish implementing
+            //DONE:	    cycle <= 0; // TODO: finish implementing
             default:    cycle <= 0; // TODO: finish implementing
         endcase
         
@@ -226,8 +226,8 @@ module nn_controller(input  logic                clk, reset,
             CLR3:	 controls = 4'b0110;
             MUL4:	 controls = 4'b0010;
             WB4:	 controls = 4'b1011; // stop here in sim to check results
-            CLR4:	 controls = 4'b0110;
-            DONE:	 controls = 4'b0010;
+            //CLR4:	 controls = 4'b0110; // We need to wait to assert clear unitl after the data has been sent over SPI.  Maybe we do not even need these states, just have it stay at done.  When uC is reset, we do a new classification
+            //DONE:	 controls = 4'b0010;
             default: controls = 4'bxxxx;
         endcase
 	end	
@@ -238,7 +238,7 @@ module nn_controller(input  logic                clk, reset,
     // assign flags
 	assign rd_src1 = input_layer_done;
     assign rd_src2 = layers_done_count;
-    assign done    = output_layer_done;
+    assign done = (state == WB4); // make this the last state
     
 endmodule
 
@@ -586,24 +586,24 @@ module spi(input  logic sck,
                input  logic sdi,
                output logic sdo,
                input  logic done,
-               input  logic [2047:0] frame);
+               input  logic [239:0] result); // is this size just 15*16=240 bits?
 
     logic sdodelayed, wasdone;
-	 logic [2047:0] framecaptured;
+	 logic [239:0] resultcaptured;
                
     // shift out the data.  80 scks to shift out data
     always_ff @(posedge sck)
-		  if (!wasdone)	framecaptured = frame;
-		  else				framecaptured = {framecaptured[2046:0], sdi};
+		  if (!wasdone)	resultcaptured = result;
+		  else				resultcaptured = {resultcaptured[238:0], sdi};
     
     // sdo should change on the negative edge of sck
     always_ff @(negedge sck) begin
         wasdone = done;
-		  sdodelayed = framecaptured[2046];
+		  sdodelayed = resultcaptured[238];
     end
     
     // when done is first asserted, shift out msb before clock edge
-    assign sdo = (done & !wasdone) ? frame[2047] : sdodelayed;
+    assign sdo = (done & !wasdone) ? result[239] : sdodelayed;
 endmodule
 
 //
