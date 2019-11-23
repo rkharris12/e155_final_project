@@ -5,6 +5,7 @@
 **/Matlab/Weights/
 **/Matlab/*.dat
 *.csv
+*.xlsx
 **/db/
 **/incremental_db/
 **/output_files/
