@@ -31,7 +31,7 @@ with open('images.csv', newline='') as imgFile:
     for row in imgRead:
         row = row[0].split(',')
         for e in row:
-            newrow += [float(e)/512]
+            newrow += [float(e)/1024]
         images += [newrow]
         newrow = []
         
@@ -59,8 +59,8 @@ labels = np.float32(labels)
 import tensorflow as tf
 
 # Parameters
-learning_rate = 0.007
-training_epochs = 3000
+learning_rate = 0.01
+training_epochs = 1000
 batch_size = 224
 display_step = 50
 
@@ -84,10 +84,10 @@ weights = {
     'out': tf.Variable(tf.random_normal([n_hidden_5, n_classes]),constraint=lambda t: tf.clip_by_value(t, -0.25, 0.25))
 }
 biases = {
-    'b1': tf.Variable(tf.random_normal([n_hidden_1]),constraint=lambda t: tf.clip_by_value(t, -0.25, 0.25)),
-    'b2': tf.Variable(tf.random_normal([n_hidden_2]),constraint=lambda t: tf.clip_by_value(t, -0.25, 0.25)),
-    'b3': tf.Variable(tf.random_normal([n_hidden_3]),constraint=lambda t: tf.clip_by_value(t, -0.25, 0.25)),    
-    'out': tf.Variable(tf.random_normal([n_classes]),constraint=lambda t: tf.clip_by_value(t, -0.25, 0.25))
+    'b1': tf.Variable(tf.random_normal([n_hidden_1]),constraint=lambda t: tf.clip_by_value(t, -0.3, 0.3)),
+    'b2': tf.Variable(tf.random_normal([n_hidden_2]),constraint=lambda t: tf.clip_by_value(t, -0.3, 0.3)),
+    'b3': tf.Variable(tf.random_normal([n_hidden_3]),constraint=lambda t: tf.clip_by_value(t, -0.3, 0.3)),    
+    'out': tf.Variable(tf.random_normal([n_classes]),constraint=lambda t: tf.clip_by_value(t, -0.3, 0.3))
 }
 
 

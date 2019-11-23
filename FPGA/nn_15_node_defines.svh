@@ -16,7 +16,7 @@
 `define INT_32 32 // in bits
 
 // network dimensions
-`define NUM_LAYERS 4           // input + hidden + output
+`define NUM_LAYERS 5           // input + hidden + output
 
 `define INPUT_LAYER_WID 1*16   // 1 INT_16
 `define INPUT_LAYER_LEN 257

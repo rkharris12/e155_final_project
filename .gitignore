@@ -3,8 +3,7 @@
 *.wlf
 **/work/
 **/Matlab/Weights/
-*.dat
-
+**/Matlab/*.dat
 *.csv
 **/db/
 **/incremental_db/
