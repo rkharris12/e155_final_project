@@ -160,7 +160,7 @@ yp=ao'; % output of output layer
 expected = num2cell(arrayfun(@dec2q,yp));
 csvwrite('expected.csv', yp);
 cell2csv('expected_q15.csv', expected);
-%% test accuracy
+%% test accuracy 3 layers
 Nsamps = 2240;
 X=load("data1.txt");
 %X=X/1024;
@@ -194,6 +194,39 @@ for i=1:Nsamps
 end
 [Cm error]=ConfusionMatrix(Ynew,Ypnew);
 
+%% test accuracy - 2 layers
+Nsamps = 2240;
+X=load("data1.txt");
+X=X/256;
+hidden1 = relu(Wh1new'*[ones(Nsamps,1) X]');
+hidden2 = relu(Wh2new'*[ones(1,Nsamps); hidden1]);
+Yp=relu(Wonew'*[ones(1,Nsamps); hidden2])'; % forward pass to get output Yp given X
+
+Y=zeros(2240,10);
+Y(1:224,:)=[ones(224,1) zeros(224,9)];
+Y(225:448,:)=[zeros(224,1) ones(224,1) zeros(224,8)];
+Y(449:672,:)=[zeros(224,2) ones(224,1) zeros(224,7)];
+Y(673:896,:)=[zeros(224,3) ones(224,1) zeros(224,6)];
+Y(897:1120,:)=[zeros(224,4) ones(224,1) zeros(224,5)];
+Y(1121:1344,:)=[zeros(224,5) ones(224,1) zeros(224,4)];
+Y(1345:1568,:)=[zeros(224,6) ones(224,1) zeros(224,3)];
+Y(1569:1792,:)=[zeros(224,7) ones(224,1) zeros(224,2)];
+Y(1793:2016,:)=[zeros(224,8) ones(224,1) zeros(224,1)];
+Y(2017:2240,:)=[zeros(224,9) ones(224,1)];
+
+Ynew=zeros(Nsamps,1);
+Ypnew=zeros(Nsamps,1);
+for i=1:Nsamps
+    Ynew(i)=find(Y(i,:)==1);
+    val = find(Yp(i,:)==max(Yp(i,:)));
+    if length(val) ~= 1
+        Ypnew(i) = randi(10);
+    else
+        Ypnew(i) = val;
+    end
+end
+[Cm error]=ConfusionMatrix(Ynew,Ypnew);
+%%
 function ret=relu(nodes) % compute relu for nodes for all samples (nodes is 30x2240 for hidden)
     [D Nsamps]=size(nodes); % Nsamps is number of samples, D is dimension
     ret = ones(D, Nsamps);
