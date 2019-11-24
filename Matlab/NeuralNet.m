@@ -46,13 +46,13 @@ end
 function Yp=BackpropagationNetwork(X,Y)
     [Nsamps D]=size(X); % Nsamps is number of samples (2240), D is dimension (256)
     N=D; M=10; % number of input layer nodes and output layer nodes, respectively
-    L1=150; % number of hidden layer 1 nodes
-    L2=150; % number of hidden layer 2 nodes
+    L1=15; % number of hidden layer 1 nodes
+    L2=15; % number of hidden layer 2 nodes
     %L3=30; % number of hidden layer 3 nodes
     % convert X to Q16.  Shift right by 16
     xscale=256;
     X = X/xscale;
-    yscale = 10;
+    yscale = 1;
     Y=Y/yscale;
     wscale=50;
     Wh1new=(2*rand(N+1,L1)-ones(N+1,L1))/wscale; % (257xL1) randomly initialize N+1 dimensional (includes bias b) augmented hidden weight vectors Wh1=[wh1 wh2...whL].  Values between -0.25 and 0.25
@@ -77,15 +77,15 @@ function Yp=BackpropagationNetwork(X,Y)
         xtrain=X(n,:)'; % (256x1) randomly select a training sample
         xtrain=[1;xtrain]; % (257x1) D+1 augmented training sample to include bias b=1
         ytrain=Y(n,:); % (1x10) randomly selected training sample's corresponding label
-        flag=0; % overflow flag
+%         flag=0; % overflow flag
         
         % forward pass
         ah1=Wh1old'*xtrain; % activation (net input) of hidden layer 1
         for i=1:length(ah1) % Relu activation function
-            if (ah1(i) >= 1) || (ah1(i) <= -1) % prevent overflow
-                flag=1;
-                break;
-            end
+%             if (ah1(i) >= 1) || (ah1(i) <= -1) % prevent overflow
+%                 flag=1;
+%                 break;
+%             end
             if ah1(i) < 0
                 ah1(i) = 0;
                 dgh1(i) = 0;
@@ -93,16 +93,16 @@ function Yp=BackpropagationNetwork(X,Y)
                 dgh1(i) = 1;
             end
         end
-        if flag==1
-            break;
-        end
+%         if flag==1
+%             break;
+%         end
         z1=[1;ah1]; % augmented output of hidden layer 1
         ah2=Wh2old'*z1; % activation (net input) of hidden layer 2
         for i=1:length(ah2) % Relu activation function
-            if (ah2(i) >= 1) || (ah2(i) <= -1) % prevent overflow
-                flag=1;
-                break;
-            end
+%             if (ah2(i) >= 1) || (ah2(i) <= -1) % prevent overflow
+%                 flag=1;
+%                 break;
+%             end
             if ah2(i) < 0
                 ah2(i) = 0;
                 dgh2(i) = 0;
@@ -110,9 +110,9 @@ function Yp=BackpropagationNetwork(X,Y)
                 dgh2(i) = 1;
             end
         end
-        if flag==1
-            break;
-        end
+%         if flag==1
+%             break;
+%         end
         z2=[1;ah2]; % augmented output of hidden layer 2
 %         ah3=Wh3old'*z2; % activation (net input) of hidden layer 3
 %         for i=1:length(ah3) % Relu activation function
@@ -133,10 +133,10 @@ function Yp=BackpropagationNetwork(X,Y)
 %         z3=[1;ah3]; % augmented output of hidden layer 3
         ao=Woold'*z2; % activation (net input) of output layer
         for i=1:length(ao) % Relu activation function
-            if (ao(i) >= 1) || (ao(i) <= -1) % prevent overflow
-                flag=1;
-                break;
-            end
+%             if (ao(i) >= 1) || (ao(i) <= -1) % prevent overflow
+%                 flag=1;
+%                 break;
+%             end
             if ao(i) < 0
                 ao(i) = 0;
                 dgo(i) = 0;
@@ -144,9 +144,9 @@ function Yp=BackpropagationNetwork(X,Y)
                 dgo(i) = 1;
             end
         end
-        if flag==1
-            break;
-        end
+%         if flag==1
+%             break;
+%         end
         yp=ao'; % output of output layer
         
         % backward error propagation
@@ -174,11 +174,11 @@ function Yp=BackpropagationNetwork(X,Y)
 %             break;
 %         end
 
-        if min(min(Wh1new))<-1 || max(max(Wh1new))>1 || min(min(Wh2new))<-1 || max(max(Wh2new))>1 || min(min(Wonew))<-1 || max(max(Wonew))>1 % check for overflow
-            break;
-        end
+%         if min(min(Wh1new))<-1 || max(max(Wh1new))>1 || min(min(Wh2new))<-1 || max(max(Wh2new))>1 || min(min(Wonew))<-1 || max(max(Wonew))>1 % check for overflow
+%             break;
+%         end
         
-        if ~mod(iter,1000) % check error every 100000 iterations
+        if ~mod(iter,100000) % check error every 100000 iterations
             % 2 layer
             hidden1 = relu(Wh1new'*[ones(Nsamps,1) X]');
             hidden2 = relu(Wh2new'*[ones(1,Nsamps); hidden1]);
