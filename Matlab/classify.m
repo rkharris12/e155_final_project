@@ -104,16 +104,16 @@ wh1 = Wh1new;
 wh2 = Wh2new;
 wo = [Wonew zeros(16,5)];
 % make cells
-wh1c = num2cell(arrayfun(@dec2q,wh1));
-wh2c = num2cell(arrayfun(@dec2q,wh2));
-woc = num2cell(arrayfun(@dec2q,wo));
+wh1c = num2cell(arrayfun(@(o) dec2q(o,3,12), wh1));
+wh2c = num2cell(arrayfun(@(o) dec2q(o,3,12), wh2));
+woc = num2cell(arrayfun(@(o) dec2q(o,3,12), wo));
 % write csv's
 csvwrite('wh1.csv', wh1);
 csvwrite('wh2.csv', wh2);
 csvwrite('wo.csv', wo);
-cell2csv('wh1_q15.csv', wh1c);
-cell2csv('wh2_q15.csv', wh2c);
-cell2csv('wo_q15.csv', woc);
+cell2csv('wh1_q.csv', wh1c);
+cell2csv('wh2_q.csv', wh2c);
+cell2csv('wo_q.csv', woc);
 
 X=load("data1.txt");
 xtrain = X(2,:)';
@@ -121,35 +121,35 @@ xtrain = [255;xtrain]; % do 255 because that will become effectively 1 when we d
 xconverted = dec2hex(xtrain);
 xt = cellstr(xconverted);
 csvwrite('xtrain.csv', xtrain);
-cell2csv('xtrain_q15.csv', xt);
+cell2csv('xtrain_hex.csv', xt);
 
 xtrain = xtrain/256;
 ah1=Wh1new'*xtrain; % activation (net input) of hidden layer 1
-h1 = num2cell(arrayfun(@dec2q,ah1));
+h1 = num2cell(arrayfun(@(o) dec2q(o,3,12), ah1));
 csvwrite('h1.csv', ah1);
-cell2csv('h1_q15.csv', h1);
+cell2csv('h1_q.csv', h1);
 for i=1:length(ah1) % Relu activation function
     if ah1(i) < 0
         ah1(i) = 0;
     end
 end
-reluh1 = num2cell(arrayfun(@dec2q,ah1));
+reluh1 = num2cell(arrayfun(@(o) dec2q(o,3,12), ah1));
 z1=[1;ah1]; % augmented output of hidden layer 1
 ah2=Wh2new'*z1; % activation (net input) of hidden layer 2
-h2 = num2cell(arrayfun(@dec2q,ah2));
+h2 = num2cell(arrayfun(@(o) dec2q(o,3,12), ah2));
 csvwrite('h2.csv', ah2);
-cell2csv('h2_q15.csv', h2);
+cell2csv('h2_q.csv', h2);
 for i=1:length(ah2) % Relu activation function
     if ah2(i) < 0
         ah2(i) = 0;
     end
 end
-reluh2 = num2cell(arrayfun(@dec2q,ah2));
+reluh2 = num2cell(arrayfun(@(o) dec2q(o,3,12), ah2));
 z2=[1;ah2]; % augmented output of hidden layer 1
 ao=Wonew'*z2; % activation (net input) of output layer
-ol = num2cell(arrayfun(@dec2q,ao));
+ol = num2cell(arrayfun(@(o) dec2q(o,3,12), ao));
 csvwrite('ol.csv', ao);
-cell2csv('ol_q15.csv', ol);
+cell2csv('ol_q.csv', ol);
 for i=1:length(ao) % Relu activation function
     if ao(i) < 0
         ao(i) = 0;
@@ -157,9 +157,9 @@ for i=1:length(ao) % Relu activation function
 end
 yp=ao'; % output of output layer
 
-expected = num2cell(arrayfun(@dec2q,yp));
+expected = num2cell(arrayfun(@(o) dec2q(o,3,12), yp));
 csvwrite('expected.csv', yp);
-cell2csv('expected_q15.csv', expected);
+cell2csv('expected_q.csv', expected);
 %% test accuracy 3 layers
 Nsamps = 2240;
 X=load("data1.txt");
