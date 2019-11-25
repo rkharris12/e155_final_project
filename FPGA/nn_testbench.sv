@@ -1,10 +1,12 @@
-`include "nn_15_node_defines.svh" 
+ 
 
 module nn_testbench();
 
-	logic clk, reset, done;
+	logic clk, reset;
 	
-	logic [0:9] classification;
+	logic done;
+	
+	logic [15*16-1:0] classification;
 	
 	
 	// instantiate device under test
@@ -22,14 +24,7 @@ module nn_testbench();
 		begin
 			reset = 1; #22; reset = 0;
 		end
-        
-    // check results
-    always @(negedge clk) begin
-        if(done) begin
-            $display("Simulation succeeded");
-            $stop;
-        end
-    end	
+	
 	
 endmodule 
 	

@@ -10,52 +10,52 @@
 `include "nn_15_node_defines.svh"
 
 module top(input  logic       clk, reset,
-           output logic [0:9] classification,
+           output logic [15*16-1:0] classification,
            output logic       done);
            // TODO: add input for image from decimators
            // TODO: finish done signal
            
     logic [`UINT_8-1:0]  px_uint8;
-    logic [`ADR_LEN-1:0] cycle;
+    logic [`ADR_LEN-1:0] cycle, ra1;
     
     // adhoc input layer RAM
     // TODO: add input for image from decimators
-    inputmem irom(clk, cycle, px_uint8);
+    inputmem irom(clk, ra1, px_uint8);
 
-    nn feedforward(clk, reset, px_uint8, cycle, classification, done);
+    nn feedforward(clk, reset, px_uint8, cycle, ra1, classification, done);
 
 endmodule
 
 module nn(input  logic                  clk, reset,
           input  logic [`UINT_8-1:0]    px_uint8,
-          output logic [`ADR_LEN-1:0]   cycle,
-          output logic [0:9]            classification,
+          output logic [`ADR_LEN-1:0]   cycle, ra1,
+          output logic [15*16-1:0]      classification,
           output logic                  done);
 
     // wires
     logic                                we, clear;     // controls for RAM
     logic                                rd_src1;
     logic [1:0]                          rd_src2;
-    logic [`HIDDEN_LAYER_WID-1:0]        rd1, rd2, rd3, rd4; // rd from weight ROMs
+    logic [`HIDDEN_LAYER_WID-1:0]        rd1, rd2, rd3; // rd from weight ROMs
     logic [0:`NUM_MULTS-1] [`INT_16-1:0] result;        // wd to RAM
     logic [`RESULT_RD_WID-1:0]           prev_result;   // rd from RAM
+	 logic										  captureclassification;
     
     // weight memories
     // 257 rows of 15 int16s
-    w1rom h1_weights(clk, cycle, rd1);
+    w1rom h1_weights(clk, ra1, rd1);
     // 16 rows of 15 int16s
     w2rom h2_weights(clk, cycle, rd2);
     w3rom h3_weights(clk, cycle, rd3);
-    w4rom h4_weights(clk, cycle, rd4);
     
     // output layer mem
     oram result_ram(clk, we, cycle, result, prev_result);
     
     // controller
-    controller c(clk, reset, we, cycle, rd_src1, rd_src2, clear, done);
+    controller c(clk, reset, we, cycle, ra1, rd_src1, rd_src2, clear, captureclassification);
     
     // datapath
-    datapath d(clk, rd_src1, rd_src2, clear, px_uint8, rd1, rd2, rd3, rd4, prev_result, result, classification);
+    datapath d(clk, rd_src1, rd_src2, clear, px_uint8, rd1, rd2, rd3, prev_result, result, captureclassification, classification, done);
     
     
 endmodule
@@ -65,20 +65,22 @@ module datapath(input  logic                                clk,
                 input  logic [1:0]                          rd_src2,
                 input  logic                                clear,
                 input  logic [`UINT_8-1:0]                  px_uint8,
-                input  logic [`HIDDEN_LAYER_WID-1:0]        rd1, rd2, rd3, rd4, 
-				input  logic [`RESULT_RD_WID-1:0]           prev_result,
+                input  logic [`HIDDEN_LAYER_WID-1:0]        rd1, rd2, rd3, 
+					 input  logic [`RESULT_RD_WID-1:0]           prev_result,
                 output logic [0:`NUM_MULTS-1] [`INT_16-1:0] result,
-                output logic [0:9]                          classification);
+					 input  logic											captureclassification,
+                output logic [15*16-1:0]                    classification,
+					 output logic 											done);
     
-    logic        [`INT_16-1:0]                  px_int16;
+    logic signed [`INT_16-1:0]                  px_int16;
     logic signed [`INT_16-1:0]                  src1;
     logic signed [`HIDDEN_LAYER_WID-1:0]        src2;
     logic signed [0:`NUM_MULTS-1] [`INT_16-1:0] src2_int16; 
     logic signed [0:`NUM_MULTS-1] [`INT_32-1:0] prod, sum, activ_sum;
     
     // extend incoming image to int16 and convert to Q15
-    // maps [0,255] uint8 to [-1,1) Q15 int16
-    assign px_int16 = {3'b0, px_uint8, 5'b0}; 
+    // maps [0,255] uint8 to [-8,8) Q3_12 int16
+    assign px_int16 = {4'b0, px_uint8, 4'b0}; 
     
     // select read sources
     /*  src1 | src2
@@ -86,10 +88,9 @@ module datapath(input  logic                                clk,
      *  img  | rd1
      *  out  | rd2
      *  out  | rd3     
-     *  out  | rd4
      */ 
      mux2 #(`INT_16) src1mux(px_int16, prev_result, rd_src1, src1);
-     mux4 #(`HIDDEN_LAYER_WID) src2mux(rd1, rd2, rd3, rd4, rd_src2, src2);
+     mux3 #(`HIDDEN_LAYER_WID) src2mux(rd1, rd2, rd3, rd_src2, src2);
     
     // generate datapath            
     genvar i;
@@ -105,25 +106,33 @@ module datapath(input  logic                                clk,
         end
     endgenerate 
     
-	// TODO: assign classification (can't send out 10 int16s because of I/O pin limit)
-    assign classification = '0;
-       
+	 logic captured;
+	 
+	always_ff @(posedge clk)
+		if (captureclassification & !captured) begin
+			classification <= {result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8], result[9], result[10], result[11], result[12], result[13], result[14]};
+			done <= 1'b1;
+			captured <= 1'b1;
+		end
+		else if (!captureclassification) begin
+			done <= 1'b0;
+			captured <= 1'b0;
+		end
+
 endmodule
 
 module controller(input  logic                clk, reset,
                   output logic                we,
-                  output logic [`ADR_LEN-1:0] cycle,
+                  output logic [`ADR_LEN-1:0] cycle, ra1,
                   output logic                rd_src1,
                   output logic [1:0]          rd_src2, 
                   output logic                clear,
-                  output logic                done);
+                  output logic                captureclassification);
 	 
 	typedef enum logic [5:0] {RESET, 
                               MUL1, WB1, CLR1, 
                               MUL2, WB2, CLR2, 
-                              MUL3, WB3, CLR3, 
-                              MUL4, WB4, CLR4, 
-                              DONE} statetype;
+                              MUL3, DONE} statetype;
     statetype state, nextstate;
     
     // control signals
@@ -139,7 +148,7 @@ module controller(input  logic                clk, reset,
         
     always_comb begin
         case(state)
-                RESET: if (!reset)                       nextstate = MUL1;
+            RESET: if (!reset)                       nextstate = MUL1;
 					   else			                     nextstate = RESET;
 				MUL1:  if (cycle == `MULT_INPUT_CYCLES)  nextstate = WB1;
 					   else			                     nextstate = MUL1;
@@ -149,14 +158,8 @@ module controller(input  logic                clk, reset,
 					   else			                     nextstate = MUL2;
 				WB2:				                     nextstate = CLR2;
 				CLR2:				                     nextstate = MUL3;
-				MUL3:  if (cycle == `MULT_HIDDEN_CYCLES) nextstate = WB3;
+				MUL3:  if (cycle == `MULT_HIDDEN_CYCLES) nextstate = DONE;
 					   else			                     nextstate = MUL3;
-				WB3:					                 nextstate = CLR3;
-				CLR3:					                 nextstate = MUL4;
-                MUL4:  if (cycle == `MULT_HIDDEN_CYCLES) nextstate = WB4;
-					   else			                     nextstate = MUL4;
-				WB4:					                 nextstate = CLR4;
-				CLR4:					                 nextstate = DONE;
 				DONE:					                 nextstate = DONE;
 				default:				                 nextstate = RESET;
         endcase
@@ -183,16 +186,7 @@ module controller(input  logic                clk, reset,
                      end
             CLR2:	    cycle <= 0; 
             MUL3:	    cycle <= cycle + 1'b1;           
-            WB3:	 begin
-                        cycle <= 0;
-                        layers_done_count <= layers_done_count + 1'b1;
-                     end
-            CLR3:	    cycle <= 0;  
-            MUL4:	    cycle <= cycle + 1'b1;
-            WB4:	    cycle <= 0; // TODO: finish implementing
-            CLR4:	    cycle <= 0; // TODO: finish implementing
-            DONE:	    cycle <= 0; // TODO: finish implementing
-            default:    cycle <= 0; // TODO: finish implementing
+            default:    cycle <= 0;
         endcase
         
 	// combinational controls
@@ -206,15 +200,24 @@ module controller(input  logic                clk, reset,
             WB2:	 controls = 4'b1010;
             CLR2:	 controls = 4'b0110;
             MUL3:	 controls = 4'b0010;
-            WB3:	 controls = 4'b1010;
-            CLR3:	 controls = 4'b0110;
-            MUL4:	 controls = 4'b0010;
-            WB4:	 controls = 4'b1011; // stop here in sim to check results
-            CLR4:	 controls = 4'b0110;
-            DONE:	 controls = 4'b0010;
+            DONE:	 controls = 4'b0011;
             default: controls = 4'bxxxx;
         endcase
 	end	
+	
+	
+    always_comb begin
+        if (state == RESET & nextstate == MUL1) begin // added for synchronous w1rom
+            ra1 = '0;
+        end
+        else if (state == MUL1) begin
+            ra1 = cycle + 1'b1;
+        end
+        else begin
+            ra1 = '0;
+        end
+    end
+	
     
     // set controls
     assign {we, clear, input_layer_done, output_layer_done} = controls;	
@@ -222,7 +225,7 @@ module controller(input  logic                clk, reset,
     // assign flags
 	assign rd_src1 = input_layer_done;
     assign rd_src2 = layers_done_count;
-    assign done    = output_layer_done;
+    assign captureclassification    = output_layer_done;
     
 endmodule
 
@@ -239,7 +242,8 @@ module inputmem(input  logic                clk,
     initial
         $readmemh("inputlayer.dat", ROM);
     
-    assign rd = ROM[a[`ADR_LEN-1:0]]; // changed the 2 to 0
+    always_ff @(posedge clk)
+		rd <= ROM[a[`ADR_LEN-1:0]]; // changed the 2 to 0
 endmodule
 
 module w1rom(input  logic                         clk,
@@ -251,7 +255,8 @@ module w1rom(input  logic                         clk,
     initial
         $readmemh("hiddenweights1.dat", ROM);
     
-    assign rd = ROM[a[`ADR_LEN-1:0]]; // changed the 2 to 0
+    always_ff @(posedge clk)
+		rd <= ROM[a[`ADR_LEN-1:0]]; // changed the 2 to 0
 endmodule
 
 module w2rom(input  logic                         clk,
@@ -266,19 +271,8 @@ module w2rom(input  logic                         clk,
     assign rd = ROM[a[`ADR_LEN-1:0]]; // changed the 2 to 0
 endmodule
 
+
 module w3rom(input  logic                         clk,
-             input  logic [`ADR_LEN-1:0]          a,
-             output logic [`HIDDEN_LAYER_WID-1:0] rd);
-
-    logic [`HIDDEN_LAYER_WID-1:0] ROM[`HIDDEN_LAYER_LEN-1:0];
-    
-    initial
-        $readmemh("hiddenweights3.dat", ROM);
-    
-    assign rd = ROM[a[`ADR_LEN-1:0]]; // changed the 2 to 0
-endmodule
-
-module w4rom(input  logic                         clk,
              input  logic [`ADR_LEN-1:0]          a, // TODO: remove this hack
              output logic [`HIDDEN_LAYER_WID-1:0] rd);
 
@@ -302,7 +296,7 @@ module oram(input  logic                      clk, we,
     // TODO: review this; synthesizes to flops instead of RAM
     always_ff @(posedge clk)
         if (we) begin
-            RAM[0]  <= 16'h7FFF; 
+            RAM[0]  <= 16'h1000; // bias
             RAM[1]  <= wd[`INT_16*15-1 -:`INT_16]; 
             RAM[2]  <= wd[`INT_16*14-1 -:`INT_16]; 
             RAM[3]  <= wd[`INT_16*13-1 -:`INT_16]; 
@@ -325,15 +319,15 @@ endmodule
 // --- NN-specific Gates ---
 //
 
-module mul #(parameter WIDTH = 8)
+module mul #(parameter WIDTH = 16)
             (input  logic signed [WIDTH-1:0]   a, b,
              output logic signed [2*WIDTH-1:0] y);
   
-    assign y = (a * b) << 1; // LSL to get rid of extra integer bit
+    assign y = (a * b) << 4; // LSL to get rid of extra integer bits
   
 endmodule
 
-module acc #(parameter WIDTH = 8)
+module acc #(parameter WIDTH = 32)
             (input  logic                    clk, reset,
              input  logic signed [WIDTH-1:0] d, 
              output logic signed [WIDTH-1:0] sum);
@@ -380,18 +374,3 @@ module mux3 #(parameter WIDTH = 8)
     assign y = s[1] ? d2 : (s[0] ? d1 : d0); 
 endmodule
 
-module mux4 #(parameter WIDTH = 8)
-             (input  logic [WIDTH-1:0] d0, d1, d2, d3,
-              input  logic [1:0]       s, 
-              output logic [WIDTH-1:0] y);
-
-    always_comb begin
-        case (s)
-            2'b00:   y = d0;
-            2'b01:   y = d1;
-            2'b10:   y = d2;
-            2'b11:   y = d3;
-            default: y = {WIDTH{1'bx}};
-        endcase
-    end
-endmodule
