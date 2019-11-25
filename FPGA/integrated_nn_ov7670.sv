@@ -82,7 +82,7 @@ module datapath(input  logic                                clk,
                 input  logic [`HIDDEN_LAYER_WID-1:0]        rd1, rd2, rd3, 
 					 input  logic [`RESULT_RD_WID-1:0]           prev_result, 
                 output logic [0:`NUM_MULTS-1] [`INT_16-1:0] result,
-					 input  logic 											classificationcaptured,
+					 input  logic 											captureclassification,
                 output logic [15*16-1:0]                    classification,
 					 output logic											done);
     
