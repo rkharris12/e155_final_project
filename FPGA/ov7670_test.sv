@@ -98,8 +98,10 @@ module decimate(input logic pclk, reset,
 	logic [9:0] rowcount;
 	logic [9:0] colcount;
 	
-	 
-   typedef enum {S0, S1, S2, S3, S4, S5, S6, S7, S8} statetype;
+	logic [7:0] min;
+	logic [11:0] vsync_count;
+	
+   typedef enum {S0, S1, S2, S3, S4, S5, S6, S7, S8, SC} statetype;
    statetype state, nextstate;
 				  
 
@@ -110,15 +112,21 @@ module decimate(input logic pclk, reset,
         
     always_comb begin
         case(state)
-            S0:    if (vsync)  nextstate = S1;
+            S0:    if (vsync)  nextstate = SC; //maybe count to make sure it is a real vsync
                    else        nextstate = S0;
+				SC:	 if (~vsync)			nextstate = S0;
+						 else if (vsync_count == 12'd2000)	nextstate = S1;
+						 else nextstate = SC;
             S1:    if (~vsync) nextstate = S2;
                    else        nextstate = S1;
             S2:    if (href)   nextstate = S3;
+						 //else if(vsync)	nextstate = S1;
                    else        nextstate = S2;
             S3:    if (~href)  nextstate = S4;
+						 //else if(vsync)	nextstate = S1;
                    else        nextstate = S3;
-				S4:	 if (colcount == 10'd30)		 		 nextstate = S6;
+				S4:	 if(vsync)	nextstate = SC;
+						 else if (colcount == 10'd30)		 		 nextstate = S6;
 						 else if (colcount == 10'd60)		 	 nextstate = S6;
 						 else if (colcount == 10'd90)		 	 nextstate = S6;
 						 else if (colcount == 10'd120)		 nextstate = S6;
@@ -136,9 +144,16 @@ module decimate(input logic pclk, reset,
 						 else if (colcount == 10'd480)		 nextstate = S7;
 						 else			 nextstate = S5;
             S5:    if (href)   nextstate = S3;
+						 //else if(vsync)	nextstate = S0;
 						 else			 nextstate = S5;
-				S6:					 nextstate = S5;
-				S7:					 nextstate = S8;
+				S6:					 //if(vsync)	nextstate = S1;
+										 //else nextstate = S5;
+										 nextstate = S5;
+				S7:					 //if(vsync)	nextstate = S1;
+										 //else nextstate = S8;
+										 if (min > 8'd100)	nextstate = S0;
+										 else nextstate = S8;
+										 //nextstate = S8;
 				S8:					 nextstate = S8;
 				default:				 nextstate = S0;
         endcase
@@ -187,6 +202,22 @@ module decimate(input logic pclk, reset,
 				a13 <= '0;
 				a14 <= '0;
 				a15 <= '0;
+				if (a0[17:10] < min)			min <= a0[17:10];
+				else if (a1[17:10] < min)	min <= a1[17:10];
+				else if (a2[17:10] < min)	min <= a2[17:10];
+				else if (a3[17:10] < min)	min <= a3[17:10];
+				else if (a4[17:10] < min)	min <= a4[17:10];
+				else if (a5[17:10] < min)	min <= a5[17:10];
+				else if (a6[17:10] < min)	min <= a6[17:10];
+				else if (a7[17:10] < min)	min <= a7[17:10];
+				else if (a8[17:10] < min)	min <= a8[17:10];
+				else if (a9[17:10] < min)	min <= a9[17:10];
+				else if (a10[17:10] < min)	min <= a10[17:10];
+				else if (a11[17:10] < min)	min <= a11[17:10];
+				else if (a12[17:10] < min)	min <= a12[17:10];
+				else if (a13[17:10] < min)	min <= a13[17:10];
+				else if (a14[17:10] < min)	min <= a14[17:10];
+				else if (a15[17:10] < min)	min <= a15[17:10];
 		  end
 		  else if (state == S7) begin
 				//frame <= {frame[1919:0], {avg15, avg14, avg13, avg12, avg11, avg10, avg9, avg8, avg7, avg6, avg5, avg4, avg3, avg2, avg1, avg0}};
@@ -222,12 +253,18 @@ module decimate(input logic pclk, reset,
 				done <= 1'b0;
 				rowcount <= '0;
 				y <= 1'b0;
+				
+				min <= 8'b11111111;
+				vsync_count <= 12'b0;
         end
 		  else if (state == S1) begin
 				done <= 1'b0;
 				rowcount <= '0;
 				y <= 1'b0;
         end
+		  else if (state == SC)	begin
+				vsync_count = vsync_count + 1'b1;
+		  end
     end  
 						 		 
 						 
