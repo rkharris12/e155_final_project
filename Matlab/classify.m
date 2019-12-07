@@ -98,7 +98,10 @@ cell2csv('expected_q15.csv', expected);
 
 %% Do this for 2 layer 15 node networks
 clear
-load weights_2layers_15nodes_new.mat % this overflows -1 to 1.  But minimum value is -6.  Max is 4.  So use Q3_12 => 4 integer, 12 decimal
+%load weights_2layers_15nodes_new.mat % this overflows -1 to 1.  But
+%minimum value is -6.  Max is 4.  So use Q3_12 => 4 integer, 12 decimal -
+%range of -8 to 8
+load weights_2layers_15nodes_99percent.mat % could maybe use Q2_13 but use Q3_12 to be safe
 
 wh1 = Wh1new;
 wh2 = Wh2new;
@@ -116,7 +119,7 @@ cell2csv('wh2_q.csv', wh2c);
 cell2csv('wo_q.csv', woc);
 
 X=load("data1.txt");
-xtrain = X(2,:)';
+xtrain = X(1,:)';
 xtrain = [255;xtrain]; % do 255 because that will become effectively 1 when we do dec2hex
 xconverted = dec2hex(xtrain);
 xt = cellstr(xconverted);
