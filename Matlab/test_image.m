@@ -1,10 +1,21 @@
 %% load weights and image
 
 clear
-load weights_2layers_15nodes_new.mat % this overflows -1 to 1.  But minimum value is -6.  Max is 4.  So use Q3_12 => 4 integer, 12 decimal
-
+%load weights_2layers_15nodes_new.mat % this overflows -1 to 1.  But minimum value is -6.  Max is 4.  So use Q3_12 => 4 integer, 12 decimal
+load weights_2layers_15nodes_99percent.mat
 %% feedforward to get classification
-xtrain = load("pic.txt");
+%xtrain = load("pic.txt");
+pic = load("pic.txt");
+% try making bright pixels 255
+% for i=1:(length(pic))
+%     for j=1:(length(pic))
+%         if pic(i,j) > 75
+%             pic(i,j)=255;
+%         end
+%     end
+% end
+xtrain = pic;
+
 xtrain = reshape(xtrain',[1,256]);
 xtrain = [255;xtrain'];
 xtrain = xtrain/256;

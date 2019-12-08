@@ -61,6 +61,7 @@ int main(void) {
   pioPinMode(DONE_PIN, PIO_INPUT);
 	pioPinMode(RESET_PIN, PIO_OUTPUT);
 	
+	reset_segments();
 	seven_segment_init();
 	
 	pioPinMode(LED_PIN, PIO_OUTPUT);
@@ -148,7 +149,7 @@ void display_digit(char digit) {
 	char segments[8]; // 8 for 7 segments + null char
 	
 	// pull outputs high to start
-	reset_segments();
+	//reset_segments();
 	
 	switch(digit) {
 		case '0':

@@ -94,7 +94,7 @@ module datapath(input  logic                                clk,
     
     // extend incoming image to int16 and convert to Q15
     // maps [0,255] uint8 to [-8,8) Q3_12 int16
-    assign px_int16 = {4'b0, px_uint8, 4'b0}; 
+    assign px_int16 = {5'b0, px_uint8, 3'b0}; 
     
     // select read sources
     /*  src1 | src2
@@ -299,7 +299,7 @@ module oram(input  logic                      clk, we,
     // TODO: review this; synthesizes to flops instead of RAM
     always_ff @(posedge clk)
         if (we) begin
-            RAM[0]  <= 16'h1000; // bias
+            RAM[0]  <= 16'h0800; // bias
             RAM[1]  <= wd[`INT_16*15-1 -:`INT_16]; 
             RAM[2]  <= wd[`INT_16*14-1 -:`INT_16]; 
             RAM[3]  <= wd[`INT_16*13-1 -:`INT_16]; 
@@ -326,7 +326,7 @@ module mul #(parameter WIDTH = 16)
             (input  logic signed [WIDTH-1:0]   a, b,
              output logic signed [2*WIDTH-1:0] y);
   
-    assign y = (a * b) << 4; // LSL to get rid of extra integer bits
+    assign y = (a * b) << 5; // LSL to get rid of extra integer bits
   
 endmodule
 
