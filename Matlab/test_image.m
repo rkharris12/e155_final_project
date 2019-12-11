@@ -3,7 +3,7 @@
 clear
 %load weights_2layers_15nodes_new.mat % this overflows -1 to 1.  But minimum value is -6.  Max is 4.  So use Q3_12 => 4 integer, 12 decimal
 load weights_2layers_15nodes_99percent.mat
-%% feedforward to get classification
+% feedforward to get classification
 %xtrain = load("pic.txt");
 pic = load("pic.txt");
 % try making bright pixels 255

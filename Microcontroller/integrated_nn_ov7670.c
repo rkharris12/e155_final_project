@@ -1,5 +1,5 @@
 // rkharris@g.hmc.edu
-//
+// Richie Harris and Veronica Cortes
 // receive a classification from the FPGA neural net
  
 
@@ -18,27 +18,22 @@
 
 #define DONE_PIN  30
 #define RESET_PIN	8
-
-#define LED_PIN PIO_PA0
-
-#define NUM_SEGMENTS 7
-#define CAT_A_PIN PIO_PA19
-#define CAT_B_PIN PIO_PA20
+#define CAT_A_PIN PIO_PA24
+#define CAT_B_PIN PIO_PA25
 #define CAT_C_PIN PIO_PA21
-#define CAT_D_PIN PIO_PA22
-#define CAT_E_PIN PIO_PA23
-#define CAT_F_PIN PIO_PA24
-#define CAT_G_PIN PIO_PA25
-
+#define CAT_D_PIN PIO_PA20
+#define CAT_E_PIN PIO_PA19
+#define CAT_F_PIN PIO_PA23
+#define CAT_G_PIN PIO_PA22
 
 ////////////////////////////////////////////////
 // Function Prototypes
 ////////////////////////////////////////////////
 
-void reset(void);
-void seven_segment_init(void);
+void reset_board(void);
 void get_classification(char*);
 char find_max_of_classification(char*);
+void seven_segment_init(void);
 void reset_segments(void);
 void write_segments(char*);
 void display_digit(char);
@@ -61,16 +56,12 @@ int main(void) {
   pioPinMode(DONE_PIN, PIO_INPUT);
 	pioPinMode(RESET_PIN, PIO_OUTPUT);
 	
-	reset_segments();
+	reset_segments(); // reset segments before init so they are initialized to 1
 	seven_segment_init();
 	
-	pioPinMode(LED_PIN, PIO_OUTPUT);
-	pioDigitalWrite(LED_PIN, PIO_LOW);
-	
-	reset();
+	reset_board();
 	
   // recieve classification from FPGA
-	
   get_classification(classification);
 	char newDigit = find_max_of_classification(classification);
 	display_digit(newDigit);
@@ -82,11 +73,13 @@ int main(void) {
 // Functions
 ////////////////////////////////////////////////
 
-void reset(void) {
+/* Toggles the reset pin used by the FGPA */
+void reset_board(void) {
   pioDigitalWrite(RESET_PIN, 1);
   pioDigitalWrite(RESET_PIN, 0);	
 }
 
+/* Writes classification received over SPI from FPGA to ATSAM local memory */
 void get_classification(char *classification) {
   int i;
 
@@ -97,12 +90,16 @@ void get_classification(char *classification) {
   }
 }
 
+/* Returns the classified digit */
 char find_max_of_classification(char *classification) {
 	int sum = 0;
 	int new_max = 0;
 	int index_of_new_max;
 	for (int i = 0; i < 10; i++) {
-		sum = (classification[2*i] << 8) + classification[2*i+1];
+		// Get MSB by shifting first element in classification array
+		// LSB is second element in classification
+		// Get 2B number by adding MSB and LSB
+		sum = (classification[2*i] << 8) + classification[2*i+1]; 
 		if (sum > new_max) {
 			new_max = sum;
 			index_of_new_max = i;
@@ -111,8 +108,7 @@ char find_max_of_classification(char *classification) {
 	return index_of_new_max + '0'; // convert to char
 }
 
-// seven segment functions
-
+/* Set seven segment pins to PIO output mode */
 void seven_segment_init(void) {
 	pioPinMode(CAT_A_PIN, PIO_OUTPUT);
 	pioPinMode(CAT_B_PIN, PIO_OUTPUT);
@@ -123,6 +119,7 @@ void seven_segment_init(void) {
 	pioPinMode(CAT_G_PIN, PIO_OUTPUT);
 }
 
+/* Initialize seven segment output to high (OFF) */
 void reset_segments(void) {
 	pioDigitalWrite(CAT_A_PIN, PIO_HIGH);
 	pioDigitalWrite(CAT_B_PIN, PIO_HIGH);
@@ -133,6 +130,7 @@ void reset_segments(void) {
 	pioDigitalWrite(CAT_G_PIN, PIO_HIGH);
 }
 
+/* Write 7-segment cathodes using 7 digit string with segment encoding */
 void write_segments(char * segments) {
 	pioDigitalWrite(CAT_A_PIN, (int)(segments[6]-'0'));
 	pioDigitalWrite(CAT_B_PIN, (int)(segments[5]-'0'));
@@ -143,14 +141,13 @@ void write_segments(char * segments) {
 	pioDigitalWrite(CAT_G_PIN, (int)(segments[0]-'0'));	
 }
 
+/* Display the given digit on the 7-segment */
 void display_digit(char digit) {
 	
 	// make array to hold segments
 	char segments[8]; // 8 for 7 segments + null char
-	
-	// pull outputs high to start
-	//reset_segments();
-	
+
+	// Look up 7-segment encoding for given digit
 	switch(digit) {
 		case '0':
 			strcpy(segments, "1000000");

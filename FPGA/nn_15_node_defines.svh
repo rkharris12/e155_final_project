@@ -39,4 +39,12 @@
 `define NUM_MULTS 15
 `define ADR_LEN 10
 
+// camera defines
+`define CAMERA_ROWS 480 
+`define CAMERA_COLS 640 
+`define DEC_ROWS 30 // 480/16 = 30
+`define DEC_COLS 40 // 640/16 = 40
+`define MIN_THRESH 100
+`define T_LINE_X3 2000 // t_line = 784, 3t_line = 2352
+
 `endif
